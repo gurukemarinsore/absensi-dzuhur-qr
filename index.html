@@ -5,7 +5,8 @@
   <meta name="viewport"
         content="width=device-width,initial-scale=1,maximum-scale=1">
   <meta name="theme-color" content="#164e63">
-  <title>Absensi Sholat Dzuhur</title>
+  <title>Absensi Sholat Dzuhur — V3</title>
+  <!-- BUILD: KAMERA_V3_CAMERA_ID -->
 
   <!-- Dipasang di domain eksternal HTTPS, misalnya GitHub Pages -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -134,7 +135,7 @@
 <body>
   <main class="app">
     <h1>Absensi Sholat Dzuhur</h1>
-    <p class="subtitle">Pindai QR siswa, periksa nama, lalu tekan OK.</p>
+    <p class="subtitle">Pindai QR siswa, periksa nama, lalu tekan OK.<br><strong>Versi Kamera 3 — Camera ID</strong></p>
 
     <label for="tanggal">Tanggal absensi</label>
     <input type="date" id="tanggal">
@@ -242,9 +243,35 @@
       }
 
       el.startButton.disabled = true;
-      setStatus('Meminta izin kamera...');
+      setStatus('Mencari perangkat kamera...');
 
       try {
+        /*
+         * Cara paling stabil:
+         * ambil daftar kamera, lalu jalankan scanner memakai camera ID.
+         * Tidak memakai facingMode sama sekali.
+         */
+        const devices = await Html5Qrcode.getCameras();
+
+        if (!devices || devices.length === 0) {
+          throw new Error('Tidak ada perangkat kamera yang ditemukan.');
+        }
+
+        /*
+         * Di HP, utamakan kamera belakang.
+         * Di laptop, gunakan kamera pertama yang tersedia.
+         */
+        const preferredCamera =
+          devices.find(function(device) {
+            const label = String(device.label || '').toLowerCase();
+            return (
+              label.includes('back') ||
+              label.includes('rear') ||
+              label.includes('environment') ||
+              label.includes('belakang')
+            );
+          }) || devices[0];
+
         cameraScanner = new Html5Qrcode('reader');
 
         const config = {
@@ -259,21 +286,33 @@
         };
 
         await cameraScanner.start(
-          { facingMode: 'environment' },
+          preferredCamera.id,
           config,
           onScanSuccess,
-          function() {}
+          function() {
+            // Kesalahan pembacaan tiap frame diabaikan.
+          }
         );
 
         cameraRunning = true;
         el.stopButton.disabled = false;
-        setStatus('Kamera aktif. Arahkan ke QR siswa.', 'ok');
+
+        const cameraLabel =
+          preferredCamera.label || 'kamera terpilih';
+
+        setStatus(
+          'Kamera aktif: ' + cameraLabel +
+          '. Arahkan ke QR siswa.',
+          'ok'
+        );
       } catch (error) {
         cameraScanner = null;
         el.startButton.disabled = false;
         el.stopButton.disabled = true;
+
         setStatus(
-          'Kamera gagal dibuka: ' + readableCameraError(error),
+          'Kamera gagal dibuka: ' +
+          readableCameraError(error),
           'error'
         );
       }
