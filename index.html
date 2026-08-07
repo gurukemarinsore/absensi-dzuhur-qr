@@ -2,286 +2,753 @@
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport"
-        content="width=device-width,initial-scale=1,maximum-scale=1">
-  <meta name="theme-color" content="#164e63">
-  <title>Absensi Sholat Dzuhur — V3</title>
-  <!-- BUILD: KAMERA_V3_CAMERA_ID -->
 
-  <!-- Dipasang di domain eksternal HTTPS, misalnya GitHub Pages -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,maximum-scale=1"
+  >
+
+  <meta
+    name="theme-color"
+    content="#0e7490"
+  >
+
+  <title>Absensi Sholat Dzuhur — Otomatis</title>
+
+  <!-- BUILD: ABSENSI_OTOMATIS_UPDATE_KEEP_V1 -->
+
+  <script
+    src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js">
+  </script>
 
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      padding: 16px;
       min-height: 100vh;
+      padding: 14px;
       font-family: Arial, sans-serif;
-      background: #eef6f8;
-      color: #17313a;
+      background: #edf6f8;
+      color: #12313b;
     }
+
     .app {
       width: 100%;
-      max-width: 480px;
+      max-width: 500px;
       margin: 0 auto;
-      background: #fff;
-      border-radius: 18px;
       padding: 18px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.10);
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .10);
     }
+
     h1 {
       margin: 0;
-      font-size: 23px;
-      color: #164e63;
+      color: #0d4f66;
+      font-size: 25px;
       text-align: center;
     }
+
     .subtitle {
       margin: 6px 0 18px;
-      text-align: center;
-      color: #60777f;
+      color: #5a737c;
       font-size: 14px;
+      line-height: 1.45;
+      text-align: center;
     }
+
+    .version {
+      color: #0e7490;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
     label {
       display: block;
       margin-bottom: 6px;
-      font-weight: 700;
       font-size: 14px;
+      font-weight: 700;
     }
+
     input[type="date"] {
       width: 100%;
-      padding: 12px;
-      border: 1px solid #b9cbd1;
-      border-radius: 10px;
-      font-size: 16px;
       margin-bottom: 12px;
+      padding: 12px;
+      border: 1px solid #b8cbd1;
+      border-radius: 11px;
+      background: #ffffff;
+      font-size: 16px;
     }
-    #reader {
-      width: 100%;
-      min-height: 40px;
-      margin-top: 12px;
-      overflow: hidden;
-      border-radius: 14px;
-    }
+
     .actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin-top: 10px;
     }
-    button, .file-label {
+
+    button,
+    .file-label {
+      width: 100%;
+      padding: 13px 12px;
       border: 0;
-      border-radius: 10px;
-      padding: 12px;
+      border-radius: 11px;
       font-size: 15px;
       font-weight: 700;
-      cursor: pointer;
       text-align: center;
+      cursor: pointer;
     }
-    button:disabled { opacity: .55; cursor: not-allowed; }
-    .primary { background: #0e7490; color: #fff; }
-    .secondary { background: #e4eef1; color: #164e63; }
-    .success { background: #15803d; color: #fff; }
-    .danger { background: #b42318; color: #fff; }
+
+    button:disabled {
+      opacity: .52;
+      cursor: not-allowed;
+    }
+
+    .primary {
+      background: #0e7490;
+      color: #ffffff;
+    }
+
+    .secondary {
+      background: #e5eef1;
+      color: #164e63;
+    }
+
+    .update {
+      background: #d97706;
+      color: #ffffff;
+    }
+
+    .keep {
+      background: #0e7490;
+      color: #ffffff;
+    }
+
+    .retry {
+      background: #b42318;
+      color: #ffffff;
+    }
+
     .file-label {
       display: block;
       margin-top: 10px;
-      background: #e4eef1;
+      background: #e5eef1;
       color: #164e63;
     }
-    #fileInput { display: none; }
-    #result {
+
+    #fileInput {
       display: none;
-      margin-top: 14px;
-      padding: 15px;
-      border: 1px solid #7cc69a;
-      border-radius: 12px;
-      background: #effbf3;
     }
-    .detected {
-      color: #15803d;
-      font-size: 12px;
+
+    #reader {
+      width: 100%;
+      min-height: 40px;
+      margin-top: 13px;
+      overflow: hidden;
+      border-radius: 15px;
+    }
+
+    #file-reader {
+      display: none;
+    }
+
+    .panel {
+      display: none;
+      margin-top: 15px;
+      padding: 17px;
+      border-radius: 14px;
+      text-align: center;
+    }
+
+    #processingPanel {
+      border: 1px solid #8dc5d2;
+      background: #eef9fb;
+    }
+
+    #successPanel {
+      border: 1px solid #75c793;
+      background: #edfbf2;
+    }
+
+    #duplicatePanel {
+      border: 1px solid #efb65d;
+      background: #fff8e8;
+    }
+
+    #errorPanel {
+      border: 1px solid #ee9b92;
+      background: #fff0ee;
+    }
+
+    .spinner {
+      width: 42px;
+      height: 42px;
+      margin: 0 auto 12px;
+      border: 5px solid #cce6ec;
+      border-top-color: #0e7490;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .check-circle {
+      display: flex;
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 11px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: #15803d;
+      color: #ffffff;
+      font-size: 52px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .panel-title {
+      margin-bottom: 7px;
+      font-size: 14px;
       font-weight: 800;
       text-transform: uppercase;
     }
-    #studentName {
-      margin: 7px 0 4px;
-      font-size: 20px;
+
+    .success-title {
+      color: #15803d;
+    }
+
+    .duplicate-title {
+      color: #b45309;
+    }
+
+    .error-title {
+      color: #b42318;
+    }
+
+    .student-name {
+      margin: 4px 0;
+      font-size: 22px;
       font-weight: 800;
     }
-    #scanTime { color: #536b73; }
+
+    .panel-message {
+      margin: 5px 0;
+      color: #536b73;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .old-time {
+      display: inline-block;
+      margin: 7px 0;
+      padding: 8px 13px;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #9a4f08;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
     #status {
       min-height: 22px;
-      margin-top: 12px;
-      padding: 9px 10px;
-      border-radius: 9px;
+      margin-top: 13px;
+      padding: 10px;
+      border-radius: 10px;
+      background: #f1f5f6;
+      color: #40575f;
       font-size: 14px;
-      background: #f2f5f6;
-      color: #40565e;
+      line-height: 1.4;
     }
-    #status.ok { background: #e9f8ee; color: #166534; }
-    #status.error { background: #fff0ee; color: #9f1d15; }
+
+    #status.ok {
+      background: #eaf8ef;
+      color: #166534;
+    }
+
+    #status.error {
+      background: #fff0ee;
+      color: #9f1d15;
+    }
+
     .note {
-      margin-top: 14px;
+      margin: 14px 0 0;
+      color: #70848a;
       font-size: 12px;
       line-height: 1.5;
-      color: #6b7f86;
     }
-    #file-reader { display: none; }
-    iframe { display: none; width: 0; height: 0; border: 0; }
+
+    iframe {
+      display: none;
+      width: 0;
+      height: 0;
+      border: 0;
+    }
+
+    @media (max-width: 420px) {
+      .actions {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+    }
   </style>
 </head>
 
 <body>
   <main class="app">
     <h1>Absensi Sholat Dzuhur</h1>
-    <p class="subtitle">Pindai QR siswa, periksa nama, lalu tekan OK.<br><strong>Versi Kamera 3 — Camera ID</strong></p>
 
-    <label for="tanggal">Tanggal absensi</label>
-    <input type="date" id="tanggal">
+    <p class="subtitle">
+      Pindai QR siswa. Absensi pertama langsung tersimpan otomatis.
+      <br>
+      <span class="version">
+        Versi Otomatis — Update / Keep
+      </span>
+    </p>
+
+    <label for="tanggal">
+      Tanggal absensi
+    </label>
+
+    <input
+      type="date"
+      id="tanggal"
+    >
 
     <div class="actions">
-      <button id="startButton" class="primary" type="button">
+      <button
+        id="startButton"
+        class="primary"
+        type="button"
+      >
         Aktifkan Kamera
       </button>
-      <button id="stopButton" class="secondary" type="button" disabled>
+
+      <button
+        id="stopButton"
+        class="secondary"
+        type="button"
+        disabled
+      >
         Matikan Kamera
       </button>
     </div>
 
-    <label class="file-label" for="fileInput">
+    <label
+      class="file-label"
+      for="fileInput"
+    >
       Alternatif: pindai dari foto QR
     </label>
-    <input id="fileInput" type="file" accept="image/*" capture="environment">
+
+    <input
+      id="fileInput"
+      type="file"
+      accept="image/*"
+      capture="environment"
+    >
 
     <div id="reader"></div>
     <div id="file-reader"></div>
 
-    <section id="result">
-      <div class="detected">QR terdeteksi</div>
-      <div id="studentName">-</div>
-      <div id="scanTime">-</div>
+    <!-- Panel ketika data sedang diperiksa/disimpan -->
+    <section
+      id="processingPanel"
+      class="panel"
+    >
+      <div class="spinner"></div>
+
+      <div class="panel-title">
+        Memproses Absensi
+      </div>
+
+      <div
+        id="processingName"
+        class="student-name"
+      >
+        -
+      </div>
+
+      <p class="panel-message">
+        Mohon tunggu. Sistem sedang memeriksa data.
+      </p>
+    </section>
+
+    <!-- Panel sukses scan pertama atau update -->
+    <section
+      id="successPanel"
+      class="panel"
+    >
+      <div class="check-circle">
+        ✓
+      </div>
+
+      <div
+        id="successTitle"
+        class="panel-title success-title"
+      >
+        Absen Berhasil Disimpan
+      </div>
+
+      <div
+        id="successName"
+        class="student-name"
+      >
+        -
+      </div>
+
+      <p
+        id="successMessage"
+        class="panel-message"
+      >
+        -
+      </p>
+    </section>
+
+    <!-- Panel apabila data sudah ada -->
+    <section
+      id="duplicatePanel"
+      class="panel"
+    >
+      <div class="panel-title duplicate-title">
+        Data Absensi Sudah Ada
+      </div>
+
+      <div
+        id="duplicateName"
+        class="student-name"
+      >
+        -
+      </div>
+
+      <p class="panel-message">
+        Siswa ini sudah tercatat pada pukul:
+      </p>
+
+      <div
+        id="existingTime"
+        class="old-time"
+      >
+        -
+      </div>
+
+      <p class="panel-message">
+        Pilih <strong>Update</strong> untuk mengganti jam lama
+        dengan waktu sekarang, atau <strong>Keep</strong>
+        untuk mempertahankan data lama.
+      </p>
 
       <div class="actions">
-        <button id="saveButton" class="success" type="button">
-          OK — Simpan
+        <button
+          id="updateButton"
+          class="update"
+          type="button"
+        >
+          Update Waktu
         </button>
-        <button id="cancelButton" class="danger" type="button">
-          Batal
+
+        <button
+          id="keepButton"
+          class="keep"
+          type="button"
+        >
+          Keep Data Lama
         </button>
       </div>
     </section>
 
-    <div id="status">Kamera belum diaktifkan.</div>
+    <!-- Panel error backend -->
+    <section
+      id="errorPanel"
+      class="panel"
+    >
+      <div class="panel-title error-title">
+        Proses Gagal
+      </div>
+
+      <p
+        id="errorMessage"
+        class="panel-message"
+      >
+        -
+      </p>
+
+      <div class="actions">
+        <button
+          id="retryButton"
+          class="retry"
+          type="button"
+        >
+          Coba Lagi
+        </button>
+
+        <button
+          id="continueButton"
+          class="secondary"
+          type="button"
+        >
+          Lanjut Scan
+        </button>
+      </div>
+    </section>
+
+    <div id="status">
+      Kamera belum diaktifkan.
+    </div>
 
     <p class="note">
-      Halaman ini harus dibuka dari alamat HTTPS yang di-host di luar
-      Google Apps Script, misalnya GitHub Pages.
+      Setelah absensi berhasil, kamera otomatis melanjutkan
+      pemindaian untuk siswa berikutnya.
     </p>
 
-    <iframe id="gasFrame" name="gasFrame" title="Pengiriman data"></iframe>
+    <iframe
+      id="gasFrame"
+      name="gasFrame"
+      title="Pengiriman data absensi"
+    ></iframe>
   </main>
 
   <script>
-    // ==========================================================
-    // WAJIB DIGANTI dengan URL Web App Google Apps Script /exec
-    // ==========================================================
+    /*
+     * URL Web App Google Apps Script sudah dimasukkan.
+     * Jangan mengganti URL ini kecuali membuat deployment baru.
+     */
     const WEB_APP_URL =
       'https://script.google.com/macros/s/AKfycbxStMZ9sQTEByf7R6y_L3CxPcPDrNQMg3BVVJ4Fh1GORWj8ker9StCo6rQh7kDjoVRk7A/exec';
 
+    const SUCCESS_DISPLAY_MS = 1900;
+    const SAME_QR_COOLDOWN_MS = 5000;
+    const BACKEND_TIMEOUT_MS = 18000;
+
     let cameraScanner = null;
     let fileScanner = null;
+
     let cameraRunning = false;
-    let scanLocked = false;
+    let busy = false;
+
     let currentRawQr = '';
+    let currentDisplayName = '';
+
     let pendingNonce = '';
-    let saveTimer = null;
+    let pendingAction = '';
+    let backendTimer = null;
+    let successTimer = null;
+
+    let duplicateData = null;
+
+    let lastHandledQr = '';
+    let lastHandledAt = 0;
 
     const el = {
-      tanggal: document.getElementById('tanggal'),
-      startButton: document.getElementById('startButton'),
-      stopButton: document.getElementById('stopButton'),
-      fileInput: document.getElementById('fileInput'),
-      result: document.getElementById('result'),
-      studentName: document.getElementById('studentName'),
-      scanTime: document.getElementById('scanTime'),
-      saveButton: document.getElementById('saveButton'),
-      cancelButton: document.getElementById('cancelButton'),
-      status: document.getElementById('status')
+      tanggal:
+        document.getElementById('tanggal'),
+
+      startButton:
+        document.getElementById('startButton'),
+
+      stopButton:
+        document.getElementById('stopButton'),
+
+      fileInput:
+        document.getElementById('fileInput'),
+
+      processingPanel:
+        document.getElementById('processingPanel'),
+
+      processingName:
+        document.getElementById('processingName'),
+
+      successPanel:
+        document.getElementById('successPanel'),
+
+      successTitle:
+        document.getElementById('successTitle'),
+
+      successName:
+        document.getElementById('successName'),
+
+      successMessage:
+        document.getElementById('successMessage'),
+
+      duplicatePanel:
+        document.getElementById('duplicatePanel'),
+
+      duplicateName:
+        document.getElementById('duplicateName'),
+
+      existingTime:
+        document.getElementById('existingTime'),
+
+      updateButton:
+        document.getElementById('updateButton'),
+
+      keepButton:
+        document.getElementById('keepButton'),
+
+      errorPanel:
+        document.getElementById('errorPanel'),
+
+      errorMessage:
+        document.getElementById('errorMessage'),
+
+      retryButton:
+        document.getElementById('retryButton'),
+
+      continueButton:
+        document.getElementById('continueButton'),
+
+      status:
+        document.getElementById('status')
     };
 
     setToday();
-    el.startButton.addEventListener('click', startCamera);
-    el.stopButton.addEventListener('click', stopCamera);
-    el.saveButton.addEventListener('click', submitAttendance);
-    el.cancelButton.addEventListener('click', cancelScan);
-    el.fileInput.addEventListener('change', scanFromFile);
-    window.addEventListener('message', handleBackendMessage);
+
+    el.startButton.addEventListener(
+      'click',
+      startCamera
+    );
+
+    el.stopButton.addEventListener(
+      'click',
+      stopCamera
+    );
+
+    el.fileInput.addEventListener(
+      'change',
+      scanFromFile
+    );
+
+    el.updateButton.addEventListener(
+      'click',
+      updateAttendance
+    );
+
+    el.keepButton.addEventListener(
+      'click',
+      keepExistingAttendance
+    );
+
+    el.retryButton.addEventListener(
+      'click',
+      retryLastRequest
+    );
+
+    el.continueButton.addEventListener(
+      'click',
+      function() {
+        finishCurrentScan(
+          'Proses dibatalkan. Kamera siap memindai kembali.'
+        );
+      }
+    );
+
+    window.addEventListener(
+      'message',
+      handleBackendMessage
+    );
 
     function setToday() {
       const now = new Date();
+
       const localDate = new Date(
-        now.getTime() - now.getTimezoneOffset() * 60000
-      ).toISOString().slice(0, 10);
+        now.getTime() -
+        now.getTimezoneOffset() * 60000
+      )
+        .toISOString()
+        .slice(0, 10);
+
       el.tanggal.value = localDate;
     }
 
-    function setStatus(message, type = '') {
+    function setStatus(message, type) {
       el.status.textContent = message;
-      el.status.className = type;
+      el.status.className = type || '';
+    }
+
+    function hideAllPanels() {
+      el.processingPanel.style.display = 'none';
+      el.successPanel.style.display = 'none';
+      el.duplicatePanel.style.display = 'none';
+      el.errorPanel.style.display = 'none';
     }
 
     async function startCamera() {
-      if (cameraRunning) return;
+      if (cameraRunning) {
+        return;
+      }
 
       if (!window.Html5Qrcode) {
         setStatus(
-          'Library QR gagal dimuat. Periksa koneksi internet.',
+          'Library pemindai QR gagal dimuat. Periksa koneksi internet.',
           'error'
         );
+
         return;
       }
 
       el.startButton.disabled = true;
-      setStatus('Mencari perangkat kamera...');
+
+      setStatus(
+        'Mencari perangkat kamera...'
+      );
 
       try {
-        /*
-         * Cara paling stabil:
-         * ambil daftar kamera, lalu jalankan scanner memakai camera ID.
-         * Tidak memakai facingMode sama sekali.
-         */
-        const devices = await Html5Qrcode.getCameras();
+        const devices =
+          await Html5Qrcode.getCameras();
 
         if (!devices || devices.length === 0) {
-          throw new Error('Tidak ada perangkat kamera yang ditemukan.');
+          throw new Error(
+            'Tidak ada perangkat kamera yang ditemukan.'
+          );
         }
 
-        /*
-         * Di HP, utamakan kamera belakang.
-         * Di laptop, gunakan kamera pertama yang tersedia.
-         */
         const preferredCamera =
           devices.find(function(device) {
-            const label = String(device.label || '').toLowerCase();
+            const label =
+              String(device.label || '').toLowerCase();
+
             return (
               label.includes('back') ||
               label.includes('rear') ||
               label.includes('environment') ||
               label.includes('belakang')
             );
-          }) || devices[0];
+          }) ||
+          devices[0];
 
-        cameraScanner = new Html5Qrcode('reader');
+        cameraScanner =
+          new Html5Qrcode('reader');
 
         const config = {
           fps: 10,
-          qrbox: function(viewfinderWidth, viewfinderHeight) {
+
+          qrbox: function(
+            viewfinderWidth,
+            viewfinderHeight
+          ) {
             const size = Math.floor(
-              Math.min(viewfinderWidth, viewfinderHeight) * 0.72
+              Math.min(
+                viewfinderWidth,
+                viewfinderHeight
+              ) * .72
             );
-            return { width: size, height: size };
+
+            return {
+              width: size,
+              height: size
+            };
           },
+
           aspectRatio: 1.333334
         };
 
@@ -295,18 +762,17 @@
         );
 
         cameraRunning = true;
+
         el.stopButton.disabled = false;
 
-        const cameraLabel =
-          preferredCamera.label || 'kamera terpilih';
-
         setStatus(
-          'Kamera aktif: ' + cameraLabel +
-          '. Arahkan ke QR siswa.',
+          'Kamera aktif. Arahkan ke QR siswa.',
           'ok'
         );
       } catch (error) {
         cameraScanner = null;
+        cameraRunning = false;
+
         el.startButton.disabled = false;
         el.stopButton.disabled = true;
 
@@ -319,144 +785,263 @@
     }
 
     async function stopCamera() {
-      if (!cameraScanner || !cameraRunning) return;
+      clearTimeout(successTimer);
+      clearTimeout(backendTimer);
 
-      try {
-        await cameraScanner.stop();
-        await cameraScanner.clear();
-      } catch (ignored) {}
+      if (
+        cameraScanner &&
+        cameraRunning
+      ) {
+        try {
+          await cameraScanner.stop();
+          await cameraScanner.clear();
+        } catch (ignored) {
+          // Kamera mungkin sudah berhenti.
+        }
+      }
 
       cameraScanner = null;
       cameraRunning = false;
-      scanLocked = false;
+      busy = false;
+
+      currentRawQr = '';
+      currentDisplayName = '';
+      duplicateData = null;
+      pendingNonce = '';
+      pendingAction = '';
+
+      hideAllPanels();
+
       el.startButton.disabled = false;
       el.stopButton.disabled = true;
-      el.result.style.display = 'none';
-      setStatus('Kamera dimatikan.');
+      el.fileInput.value = '';
+
+      setStatus(
+        'Kamera dimatikan.'
+      );
     }
 
     async function scanFromFile(event) {
-      const file = event.target.files && event.target.files[0];
-      if (!file) return;
+      const file =
+        event.target.files &&
+        event.target.files[0];
+
+      if (!file || busy) {
+        return;
+      }
 
       try {
-        setStatus('Membaca QR dari gambar...');
-        fileScanner = new Html5Qrcode('file-reader');
-        const decodedText = await fileScanner.scanFile(file, true);
+        setStatus(
+          'Membaca QR dari gambar...'
+        );
+
+        fileScanner =
+          new Html5Qrcode('file-reader');
+
+        const decodedText =
+          await fileScanner.scanFile(
+            file,
+            true
+          );
+
         await onScanSuccess(decodedText);
       } catch (error) {
-        setStatus(
-          'QR tidak terbaca dari foto. Ambil foto lebih dekat dan jelas.',
-          'error'
+        showError(
+          'QR tidak terbaca dari foto. ' +
+          'Ambil foto lebih dekat, terang, dan tidak buram.'
         );
       } finally {
         try {
-          if (fileScanner) await fileScanner.clear();
-        } catch (ignored) {}
+          if (fileScanner) {
+            await fileScanner.clear();
+          }
+        } catch (ignored) {
+          // Abaikan kegagalan pembersihan.
+        }
+
         fileScanner = null;
       }
     }
 
+    /**
+     * Setelah QR terbaca, data langsung dikirim.
+     * Tidak ada tombol OK untuk scan pertama.
+     */
     async function onScanSuccess(decodedText) {
-      if (scanLocked) return;
+      const cleanText =
+        String(decodedText || '').trim();
 
-      const cleanText = String(decodedText || '').trim();
-      if (!cleanText) return;
-
-      scanLocked = true;
-      currentRawQr = cleanText;
-
-      if (cameraScanner && cameraRunning) {
-        try { cameraScanner.pause(true); } catch (ignored) {}
+      if (!cleanText || busy) {
+        return;
       }
 
-      const now = new Date();
-      el.studentName.textContent = labelFromQr(cleanText);
-      el.scanTime.textContent =
-        'Waktu scan: ' +
-        now.toLocaleTimeString('id-ID', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        });
+      const now = Date.now();
 
-      el.result.style.display = 'block';
-      el.saveButton.disabled = false;
-      el.cancelButton.disabled = false;
-      setStatus('Periksa nama, lalu tekan OK — Simpan.');
+      if (
+        cleanText === lastHandledQr &&
+        now - lastHandledAt <
+          SAME_QR_COOLDOWN_MS
+      ) {
+        return;
+      }
+
+      if (!el.tanggal.value) {
+        showError(
+          'Pilih tanggal absensi terlebih dahulu.'
+        );
+
+        return;
+      }
+
+      busy = true;
+
+      currentRawQr = cleanText;
+      currentDisplayName =
+        labelFromQr(cleanText);
+
+      duplicateData = null;
+
+      if (
+        cameraScanner &&
+        cameraRunning
+      ) {
+        try {
+          cameraScanner.pause(true);
+        } catch (ignored) {
+          // Abaikan jika kamera tidak dapat dijeda.
+        }
+      }
+
+      showProcessing(
+        currentDisplayName,
+        'Memeriksa dan menyimpan data...'
+      );
+
+      sendBackend('scan');
     }
 
     function labelFromQr(raw) {
       try {
         const data = JSON.parse(raw);
-        return data.nama || data.name || data.nis ||
-               data.id || data.kode || raw;
-      } catch (ignored) {}
 
-      const parts = raw.split('|').map(x => x.trim()).filter(Boolean);
-      return parts.length > 1 ? parts[parts.length - 1] : raw;
+        return (
+          data.nama ||
+          data.name ||
+          data.nis ||
+          data.id ||
+          data.kode ||
+          raw
+        );
+      } catch (ignored) {
+        // QR bukan JSON.
+      }
+
+      const parts = raw
+        .split('|')
+        .map(function(item) {
+          return item.trim();
+        })
+        .filter(Boolean);
+
+      return parts.length > 1
+        ? parts[parts.length - 1]
+        : raw;
     }
 
-    function submitAttendance() {
-      if (!currentRawQr) {
-        setStatus('Belum ada QR yang dipindai.', 'error');
-        return;
-      }
+    function showProcessing(name, message) {
+      hideAllPanels();
 
-      if (!el.tanggal.value) {
-        setStatus('Pilih tanggal absensi terlebih dahulu.', 'error');
-        return;
-      }
+      el.processingName.textContent =
+        name || '-';
 
-      if (
-        !WEB_APP_URL ||
-        WEB_APP_URL === 'GANTI_DENGAN_URL_WEB_APP_APPS_SCRIPT'
-      ) {
-        setStatus(
-          'WEB_APP_URL pada index.html belum diisi.',
-          'error'
-        );
-        return;
-      }
+      el.processingPanel
+        .querySelector('.panel-message')
+        .textContent =
+          message ||
+          'Mohon tunggu. Sistem sedang memeriksa data.';
 
-      el.saveButton.disabled = true;
-      el.cancelButton.disabled = true;
-      setStatus('Menyimpan ke Google Spreadsheet...');
+      el.processingPanel.style.display =
+        'block';
+
+      setStatus(
+        message ||
+        'Sedang memproses data...'
+      );
+    }
+
+    function sendBackend(action) {
+      clearTimeout(backendTimer);
+
+      pendingAction = action;
 
       pendingNonce =
         Date.now().toString(36) +
-        Math.random().toString(36).slice(2);
+        Math.random()
+          .toString(36)
+          .slice(2);
 
-      const form = document.createElement('form');
+      const form =
+        document.createElement('form');
+
       form.method = 'POST';
       form.action = WEB_APP_URL;
       form.target = 'gasFrame';
 
-      addField(form, 'tanggal', el.tanggal.value);
-      addField(form, 'qr', currentRawQr);
-      addField(form, 'nonce', pendingNonce);
+      addField(
+        form,
+        'action',
+        action
+      );
+
+      addField(
+        form,
+        'tanggal',
+        el.tanggal.value
+      );
+
+      addField(
+        form,
+        'qr',
+        currentRawQr
+      );
+
+      addField(
+        form,
+        'nonce',
+        pendingNonce
+      );
 
       document.body.appendChild(form);
+
       form.submit();
       form.remove();
 
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(function() {
-        if (!pendingNonce) return;
-        el.saveButton.disabled = false;
-        el.cancelButton.disabled = false;
-        setStatus(
-          'Tidak ada respons dari backend. Periksa URL /exec dan deployment Apps Script.',
-          'error'
-        );
-      }, 15000);
+      backendTimer = setTimeout(
+        function() {
+          if (!pendingNonce) {
+            return;
+          }
+
+          pendingNonce = '';
+
+          showError(
+            'Tidak ada respons dari backend. ' +
+            'Periksa deployment Apps Script dan pastikan ' +
+            'kode terbaru sudah dibuat sebagai versi baru.'
+          );
+        },
+        BACKEND_TIMEOUT_MS
+      );
     }
 
     function addField(form, name, value) {
-      const input = document.createElement('input');
+      const input =
+        document.createElement('input');
+
       input.type = 'hidden';
       input.name = name;
       input.value = value;
+
       form.appendChild(input);
     }
 
@@ -465,60 +1050,307 @@
 
       if (
         !data ||
-        data.source !== 'ABSENSI_QR_BACKEND' ||
+        data.source !==
+          'ABSENSI_QR_BACKEND' ||
         !pendingNonce ||
         data.nonce !== pendingNonce
       ) {
         return;
       }
 
-      clearTimeout(saveTimer);
+      clearTimeout(backendTimer);
+
       pendingNonce = '';
 
-      if (data.ok) {
-        setStatus(data.message || 'Absensi berhasil disimpan.', 'ok');
-        finishCurrentScan();
-      } else {
-        el.saveButton.disabled = false;
-        el.cancelButton.disabled = false;
-        setStatus(data.message || 'Data gagal disimpan.', 'error');
+      if (!data.ok) {
+        showError(
+          data.message ||
+          'Data gagal diproses.'
+        );
+
+        return;
       }
+
+      if (data.status === 'created') {
+        showSuccess({
+          title: 'Absen Berhasil Disimpan',
+          name: data.nama,
+          message:
+            'Jam absen: ' +
+            (data.time || '-')
+        });
+
+        scheduleResume(
+          data.nama,
+          data.time
+        );
+
+        return;
+      }
+
+      if (data.status === 'duplicate') {
+        showDuplicate(data);
+        return;
+      }
+
+      if (data.status === 'updated') {
+        showSuccess({
+          title: 'Jam Absen Berhasil Diupdate',
+          name: data.nama,
+          message:
+            'Jam lama: ' +
+            (data.oldTime || '-') +
+            ' → Jam baru: ' +
+            (data.time || '-')
+        });
+
+        scheduleResume(
+          data.nama,
+          data.time
+        );
+
+        return;
+      }
+
+      showError(
+        data.message ||
+        'Respons backend tidak dikenali.'
+      );
     }
 
-    function cancelScan() {
-      setStatus('Scan dibatalkan.');
-      finishCurrentScan();
+    function showSuccess(options) {
+      hideAllPanels();
+
+      el.successTitle.textContent =
+        options.title ||
+        'Absen Berhasil Disimpan';
+
+      el.successName.textContent =
+        options.name ||
+        currentDisplayName ||
+        '-';
+
+      el.successMessage.textContent =
+        options.message || '';
+
+      el.successPanel.style.display =
+        'block';
+
+      setStatus(
+        options.title ||
+        'Absensi berhasil.',
+        'ok'
+      );
     }
 
-    function finishCurrentScan() {
+    function showDuplicate(data) {
+      hideAllPanels();
+
+      duplicateData = data;
+
+      el.duplicateName.textContent =
+        data.nama ||
+        currentDisplayName ||
+        '-';
+
+      el.existingTime.textContent =
+        data.existingTime || '-';
+
+      el.duplicatePanel.style.display =
+        'block';
+
+      el.updateButton.disabled = false;
+      el.keepButton.disabled = false;
+
+      setStatus(
+        'Data sudah ada. Pilih Update atau Keep.'
+      );
+    }
+
+    function updateAttendance() {
+      if (
+        !busy ||
+        !currentRawQr ||
+        !duplicateData
+      ) {
+        return;
+      }
+
+      el.updateButton.disabled = true;
+      el.keepButton.disabled = true;
+
+      showProcessing(
+        duplicateData.nama ||
+        currentDisplayName,
+        'Memperbarui jam absensi...'
+      );
+
+      sendBackend('update');
+    }
+
+    function keepExistingAttendance() {
+      if (!duplicateData) {
+        finishCurrentScan(
+          'Data lama dipertahankan.'
+        );
+
+        return;
+      }
+
+      showSuccess({
+        title: 'Data Lama Dipertahankan',
+        name:
+          duplicateData.nama ||
+          currentDisplayName,
+        message:
+          'Jam absen tetap: ' +
+          (duplicateData.existingTime || '-')
+      });
+
+      scheduleResume(
+        duplicateData.nama,
+        duplicateData.existingTime
+      );
+    }
+
+    function showError(message) {
+      hideAllPanels();
+
+      el.errorMessage.textContent =
+        message || 'Terjadi kesalahan.';
+
+      el.errorPanel.style.display =
+        'block';
+
+      el.retryButton.disabled = false;
+      el.continueButton.disabled = false;
+
+      setStatus(
+        message || 'Terjadi kesalahan.',
+        'error'
+      );
+    }
+
+    function retryLastRequest() {
+      if (!currentRawQr) {
+        finishCurrentScan(
+          'Tidak ada data untuk dicoba ulang.'
+        );
+
+        return;
+      }
+
+      el.retryButton.disabled = true;
+      el.continueButton.disabled = true;
+
+      const action =
+        pendingAction === 'update'
+          ? 'update'
+          : 'scan';
+
+      showProcessing(
+        currentDisplayName,
+        action === 'update'
+          ? 'Mencoba memperbarui kembali...'
+          : 'Mencoba menyimpan kembali...'
+      );
+
+      sendBackend(action);
+    }
+
+    function scheduleResume(name, time) {
+      lastHandledQr = currentRawQr;
+      lastHandledAt = Date.now();
+
+      clearTimeout(successTimer);
+
+      successTimer = setTimeout(
+        function() {
+          finishCurrentScan(
+            'Kamera siap memindai siswa berikutnya.'
+          );
+        },
+        SUCCESS_DISPLAY_MS
+      );
+    }
+
+    function finishCurrentScan(message) {
+      clearTimeout(backendTimer);
+      clearTimeout(successTimer);
+
+      pendingNonce = '';
+      pendingAction = '';
+
       currentRawQr = '';
-      scanLocked = false;
-      el.result.style.display = 'none';
-      el.fileInput.value = '';
-      el.saveButton.disabled = false;
-      el.cancelButton.disabled = false;
+      currentDisplayName = '';
+      duplicateData = null;
 
-      if (cameraScanner && cameraRunning) {
-        try { cameraScanner.resume(); } catch (ignored) {}
+      busy = false;
+
+      hideAllPanels();
+
+      el.fileInput.value = '';
+
+      el.updateButton.disabled = false;
+      el.keepButton.disabled = false;
+      el.retryButton.disabled = false;
+      el.continueButton.disabled = false;
+
+      if (
+        cameraScanner &&
+        cameraRunning
+      ) {
+        try {
+          cameraScanner.resume();
+        } catch (ignored) {
+          // Abaikan jika scanner sudah berjalan.
+        }
       }
+
+      setStatus(
+        message ||
+        'Kamera siap memindai.',
+        'ok'
+      );
     }
 
     function readableCameraError(error) {
-      const name = error && error.name ? error.name : '';
-      const message = error && error.message ? error.message : String(error);
+      const name =
+        error && error.name
+          ? error.name
+          : '';
+
+      const message =
+        error && error.message
+          ? error.message
+          : String(error);
 
       if (name === 'NotAllowedError') {
-        return 'izin kamera ditolak. Buka setelan situs browser dan pilih Izinkan.';
+        return (
+          'izin kamera ditolak. ' +
+          'Buka setelan situs dan pilih Izinkan.'
+        );
       }
+
       if (name === 'NotFoundError') {
-        return 'perangkat kamera tidak ditemukan.';
+        return (
+          'perangkat kamera tidak ditemukan.'
+        );
       }
+
       if (name === 'NotReadableError') {
-        return 'kamera sedang dipakai aplikasi lain. Tutup aplikasi kamera/rapat video.';
+        return (
+          'kamera sedang dipakai aplikasi lain. ' +
+          'Tutup aplikasi kamera, Zoom, Meet, atau WhatsApp.'
+        );
       }
+
       if (name === 'OverconstrainedError') {
-        return 'kamera belakang tidak cocok; coba browser/perangkat lain.';
+        return (
+          'kamera yang diminta tidak tersedia.'
+        );
       }
+
       return message;
     }
   </script>
