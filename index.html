@@ -13,9 +13,9 @@
     content="#0e7490"
   >
 
-  <title>Absensi Sholat Dzuhur — Revisi v002</title>
+  <title>Absensi Sholat Dzuhur — Revisi v003</title>
 
-  <!-- BUILD: APLIKASI_ABSEN_SHOLAT_V002 -->
+  <!-- BUILD: APLIKASI_ABSEN_SHOLAT_V003 -->
 
   <script
     src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js">
@@ -326,6 +326,90 @@
         font-size: 22px;
       }
     }
+  
+
+    .data-card {
+      margin: 0 0 12px;
+      padding: 12px;
+      border: 1px solid #c9dce1;
+      border-radius: 12px;
+      background: #f7fbfc;
+    }
+
+    .data-card.loading {
+      border-color: #8dc5d2;
+      background: #eef9fb;
+    }
+
+    .data-card.ready {
+      border-color: #75c793;
+      background: #edfbf2;
+    }
+
+    .data-card.error {
+      border-color: #ee9b92;
+      background: #fff0ee;
+    }
+
+    .data-card-title {
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .data-stats {
+      margin-top: 5px;
+      color: #526b73;
+      font-size: 13px;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .mini-button {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 9px;
+      background: #e5eef1;
+      color: #164e63;
+      font-size: 12px;
+    }
+
+    .sync-box {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      background: #f1f7f8;
+      color: #526b73;
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .sync-box.ok {
+      background: #eaf8ef;
+      color: #166534;
+    }
+
+    .sync-box.pending {
+      background: #fff8e8;
+      color: #92400e;
+    }
+
+    .sync-box.error {
+      background: #fff0ee;
+      color: #9f1d15;
+    }
+
+    #retrySyncButton {
+      display: none;
+      margin-top: 8px;
+    }
+
+    .fast-note {
+      font-weight: 700;
+      color: #0e7490;
+    }
+
   </style>
 </head>
 
@@ -334,10 +418,11 @@
     <h1>Absensi Sholat Dzuhur</h1>
 
     <p class="subtitle">
-      Pindai QR siswa. Absensi pertama langsung tersimpan otomatis.
+      Fast Mode: pencarian siswa dan pengecekan duplikat dilakukan
+      langsung di perangkat setelah data awal dimuat.
       <br>
       <span class="version">
-        Revisi v002 — Perbaikan Kamera Depan HP
+        Revisi v003 — Fast Mode + Preload + Batch Sync
       </span>
     </p>
 
@@ -350,11 +435,39 @@
       id="tanggal"
     >
 
+    <section
+      id="dataCard"
+      class="data-card loading"
+    >
+      <div
+        id="dataCardTitle"
+        class="data-card-title"
+      >
+        Menyiapkan data...
+      </div>
+
+      <div
+        id="dataStats"
+        class="data-stats"
+      >
+        Mengambil daftar siswa dan absensi tanggal ini.
+      </div>
+
+      <button
+        id="refreshDataButton"
+        class="mini-button"
+        type="button"
+      >
+        Refresh Data Siswa
+      </button>
+    </section>
+
     <div class="actions">
       <button
         id="startButton"
         class="primary"
         type="button"
+        disabled
       >
         Aktifkan Kamera
       </button>
@@ -414,7 +527,6 @@
     <div id="reader"></div>
     <div id="file-reader"></div>
 
-    <!-- Panel ketika data sedang diperiksa/disimpan -->
     <section
       id="processingPanel"
       class="panel"
@@ -422,7 +534,7 @@
       <div class="spinner"></div>
 
       <div class="panel-title">
-        Memproses Absensi
+        Memproses
       </div>
 
       <div
@@ -433,11 +545,10 @@
       </div>
 
       <p class="panel-message">
-        Mohon tunggu. Sistem sedang memeriksa data.
+        Mohon tunggu.
       </p>
     </section>
 
-    <!-- Panel sukses scan pertama atau update -->
     <section
       id="successPanel"
       class="panel"
@@ -450,7 +561,7 @@
         id="successTitle"
         class="panel-title success-title"
       >
-        Absen Berhasil Disimpan
+        Absensi Diterima
       </div>
 
       <div
@@ -468,7 +579,6 @@
       </p>
     </section>
 
-    <!-- Panel apabila data sudah ada -->
     <section
       id="duplicatePanel"
       class="panel"
@@ -520,7 +630,6 @@
       </div>
     </section>
 
-    <!-- Panel error backend -->
     <section
       id="errorPanel"
       class="panel"
@@ -556,33 +665,45 @@
     </section>
 
     <div id="status">
-      Kamera belum diaktifkan.
+      Menyiapkan data...
     </div>
 
-    <p class="note">
-      Setelah absensi berhasil, kamera otomatis melanjutkan
-      pemindaian. Flip hanya membalik tampilan, sedangkan
-      Ganti Kamera memprioritaskan kamera depan/belakang di HP.
-    </p>
+    <div
+      id="syncStatus"
+      class="sync-box"
+    >
+      Sinkronisasi belum dimulai.
+    </div>
 
-    <iframe
-      id="gasFrame"
-      name="gasFrame"
-      title="Pengiriman data absensi"
-    ></iframe>
+    <button
+      id="retrySyncButton"
+      class="retry"
+      type="button"
+    >
+      Coba Sinkronisasi Lagi
+    </button>
+
+    <p class="note">
+      <span class="fast-note">Fast Mode:</span>
+      setelah Data Siap, pencarian QR dilakukan lokal sehingga respons
+      tampil sangat cepat. Penyimpanan Google Sheet berjalan di belakang
+      layar. Sebelum menutup halaman, pastikan status menunjukkan
+      <strong>Semua data tersimpan di Google Sheet.</strong>
+      Flip dan Ganti Kamera dari v002 tetap dipertahankan.
+    </p>
   </main>
 
+
   <script>
-    /*
-     * URL Web App Google Apps Script sudah dimasukkan.
-     * Jangan mengganti URL ini kecuali membuat deployment baru.
-     */
     const WEB_APP_URL =
       'https://script.google.com/macros/s/AKfycbxStMZ9sQTEByf7R6y_L3CxPcPDrNQMg3BVVJ4Fh1GORWj8ker9StCo6rQh7kDjoVRk7A/exec';
 
-    const SUCCESS_DISPLAY_MS = 1900;
-    const SAME_QR_COOLDOWN_MS = 5000;
+    const FAST_SUCCESS_DISPLAY_MS = 700;
+    const SAME_QR_COOLDOWN_MS = 3500;
     const BACKEND_TIMEOUT_MS = 18000;
+    const MAX_SYNC_BATCH = 10;
+    const MAX_AUTO_RETRY = 2;
+    const RETRY_DELAY_MS = 700;
 
     let cameraScanner = null;
     let fileScanner = null;
@@ -597,30 +718,47 @@
     let currentFacingMode = 'unknown';
     let previewMirrored = false;
 
-    /*
-     * Pada HP, daftar kamera kadang hanya menampilkan satu perangkat
-     * walaupun kamera depan dan belakang tersedia. Karena itu tombol
-     * Ganti Kamera tidak lagi bergantung hanya pada jumlah device.
-     */
     const likelyMobileDevice =
       detectLikelyMobileDevice();
 
+    let dataReady = false;
+    let bootstrapLoading = false;
+    let studentList = [];
+    let studentLookup = new Map();
+    let attendanceLookup = new Map();
+
     let currentRawQr = '';
     let currentDisplayName = '';
-
-    let pendingNonce = '';
-    let pendingAction = '';
-    let backendTimer = null;
-    let successTimer = null;
-
+    let currentStudent = null;
     let duplicateData = null;
+
+    let successTimer = null;
 
     let lastHandledQr = '';
     let lastHandledAt = 0;
 
+    const requestRegistry = new Map();
+
+    let syncQueue = [];
+    let syncWorkerRunning = false;
+    let syncInFlightCount = 0;
+    let failedSyncItems = [];
+
     const el = {
       tanggal:
         document.getElementById('tanggal'),
+
+      dataCard:
+        document.getElementById('dataCard'),
+
+      dataCardTitle:
+        document.getElementById('dataCardTitle'),
+
+      dataStats:
+        document.getElementById('dataStats'),
+
+      refreshDataButton:
+        document.getElementById('refreshDataButton'),
 
       startButton:
         document.getElementById('startButton'),
@@ -689,13 +827,20 @@
         document.getElementById('continueButton'),
 
       status:
-        document.getElementById('status')
+        document.getElementById('status'),
+
+      syncStatus:
+        document.getElementById('syncStatus'),
+
+      retrySyncButton:
+        document.getElementById('retrySyncButton')
     };
 
     setToday();
     applyPreviewFlip();
     updateCameraInfo();
     updateCameraControls();
+    updateSyncStatus();
 
     el.startButton.addEventListener(
       'click',
@@ -734,15 +879,40 @@
 
     el.retryButton.addEventListener(
       'click',
-      retryLastRequest
+      retryCurrentQr
     );
 
     el.continueButton.addEventListener(
       'click',
       function() {
         finishCurrentScan(
-          'Proses dibatalkan. Kamera siap memindai kembali.'
+          'Kamera siap memindai kembali.'
         );
+      }
+    );
+
+    el.refreshDataButton.addEventListener(
+      'click',
+      function() {
+        loadBootstrap(true);
+      }
+    );
+
+    el.retrySyncButton.addEventListener(
+      'click',
+      retryFailedSync
+    );
+
+    el.tanggal.addEventListener(
+      'change',
+      function() {
+        if (busy) {
+          finishCurrentScan(
+            'Tanggal berubah. Memuat ulang data...'
+          );
+        }
+
+        loadBootstrap(false);
       }
     );
 
@@ -751,17 +921,62 @@
       handleBackendMessage
     );
 
+    loadBootstrap(false);
+
     function setToday() {
-      const now = new Date();
+      try {
+        const parts =
+          new Intl.DateTimeFormat(
+            'en-CA',
+            {
+              timeZone: 'Asia/Jayapura',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit'
+            }
+          ).formatToParts(new Date());
 
-      const localDate = new Date(
-        now.getTime() -
-        now.getTimezoneOffset() * 60000
-      )
-        .toISOString()
-        .slice(0, 10);
+        const values = {};
 
-      el.tanggal.value = localDate;
+        parts.forEach(function(part) {
+          values[part.type] = part.value;
+        });
+
+        el.tanggal.value =
+          values.year +
+          '-' +
+          values.month +
+          '-' +
+          values.day;
+      } catch (ignored) {
+        const now = new Date();
+
+        el.tanggal.value = new Date(
+          now.getTime() -
+          now.getTimezoneOffset() * 60000
+        )
+          .toISOString()
+          .slice(0, 10);
+      }
+    }
+
+    function papuaTimeNow() {
+      try {
+        return new Intl.DateTimeFormat(
+          'en-GB',
+          {
+            timeZone: 'Asia/Jayapura',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          }
+        ).format(new Date());
+      } catch (ignored) {
+        return new Date()
+          .toTimeString()
+          .slice(0, 8);
+      }
     }
 
     function setStatus(message, type) {
@@ -776,14 +991,15 @@
       el.errorPanel.style.display = 'none';
     }
 
-    /**
-     * Membuka kamera awal.
-     *
-     * Pada HP, sistem terlebih dahulu meminta facingMode "environment"
-     * agar kamera belakang dipilih. Jika browser tidak mendukungnya,
-     * sistem beralih ke camera ID dari daftar perangkat.
-     */
     async function startCamera() {
+      if (!dataReady) {
+        setStatus(
+          'Data siswa dan absensi belum siap. Tunggu sampai muncul tanda Data Siap.',
+          'error'
+        );
+        return;
+      }
+
       if (
         cameraRunning ||
         cameraTransitioning ||
@@ -1737,6 +1953,7 @@
 
     function updateCameraControls() {
       el.startButton.disabled =
+        !dataReady ||
         cameraRunning ||
         cameraTransitioning ||
         busy;
@@ -1851,7 +2068,6 @@
 
     async function stopCamera() {
       clearTimeout(successTimer);
-      clearTimeout(backendTimer);
 
       cameraTransitioning = true;
       updateCameraControls();
@@ -1861,9 +2077,8 @@
       busy = false;
       currentRawQr = '';
       currentDisplayName = '';
+      currentStudent = null;
       duplicateData = null;
-      pendingNonce = '';
-      pendingAction = '';
 
       currentCameraIndex = -1;
       currentCameraId = '';
@@ -1878,7 +2093,196 @@
       updateCameraInfo();
       updateCameraControls();
 
-      setStatus('Kamera dimatikan.');
+      setStatus(
+        dataReady
+          ? 'Kamera dimatikan. Data tetap siap.'
+          : 'Kamera dimatikan.'
+      );
+    }
+
+
+
+    async function loadBootstrap(force) {
+      if (!el.tanggal.value || bootstrapLoading) {
+        return;
+      }
+
+      bootstrapLoading = true;
+      dataReady = false;
+
+      el.refreshDataButton.disabled = true;
+
+      el.dataCard.className =
+        'data-card loading';
+
+      el.dataCardTitle.textContent =
+        force
+          ? 'Menyegarkan data siswa...'
+          : 'Menyiapkan data...';
+
+      el.dataStats.textContent =
+        'Mengambil daftar siswa dan absensi tanggal ini.';
+
+      updateCameraControls();
+
+      setStatus(
+        force
+          ? 'Membaca ulang data dari Sheet1...'
+          : 'Menyiapkan data agar scan lebih cepat...'
+      );
+
+      try {
+        const response =
+          await sendBackendRequest(
+            'bootstrap',
+            {
+              tanggal: el.tanggal.value,
+              force: force ? '1' : '0'
+            }
+          );
+
+        if (
+          !response.ok ||
+          response.status !==
+            'bootstrap_ready'
+        ) {
+          throw new Error(
+            response.message ||
+            'Data awal gagal dimuat.'
+          );
+        }
+
+        buildLocalData(response);
+
+        dataReady = true;
+
+        el.dataCard.className =
+          'data-card ready';
+
+        el.dataCardTitle.textContent =
+          '✓ Data Siap';
+
+        updateDataStats();
+
+        setStatus(
+          'Data siap. Aktifkan kamera dan mulai memindai.',
+          'ok'
+        );
+      } catch (error) {
+        dataReady = false;
+
+        el.dataCard.className =
+          'data-card error';
+
+        el.dataCardTitle.textContent =
+          'Data belum siap';
+
+        el.dataStats.textContent =
+          readableBackendError(error);
+
+        setStatus(
+          'Data awal gagal dimuat. Tekan Refresh Data Siswa untuk mencoba lagi.',
+          'error'
+        );
+      } finally {
+        bootstrapLoading = false;
+        el.refreshDataButton.disabled = false;
+        updateCameraControls();
+      }
+    }
+
+    function buildLocalData(response) {
+      studentList =
+        Array.isArray(response.students)
+          ? response.students
+          : [];
+
+      studentLookup = new Map();
+
+      studentList.forEach(function(student) {
+        [
+          student.nis,
+          student.nama
+        ]
+          .map(normalizeLocal)
+          .filter(Boolean)
+          .forEach(function(key) {
+            studentLookup.set(
+              key,
+              student
+            );
+          });
+      });
+
+      attendanceLookup = new Map();
+
+      const attendance =
+        Array.isArray(response.attendance)
+          ? response.attendance
+          : [];
+
+      attendance.forEach(function(record) {
+        const key =
+          canonicalStudentKeyLocal(record);
+
+        if (!key) {
+          return;
+        }
+
+        attendanceLookup.set(
+          key,
+          {
+            nis: record.nis || '',
+            nama: record.nama || '',
+            kelas: record.kelas || '',
+            jam: record.jam || '-',
+            syncState: 'saved'
+          }
+        );
+      });
+    }
+
+    function updateDataStats() {
+      if (!dataReady) {
+        return;
+      }
+
+      let synced = 0;
+      let pending = 0;
+
+      attendanceLookup.forEach(
+        function(record) {
+          if (
+            record &&
+            String(record.syncState || '')
+              .startsWith('pending')
+          ) {
+            pending++;
+          } else {
+            synced++;
+          }
+        }
+      );
+
+      const present =
+        synced + pending;
+
+      const notPresent =
+        Math.max(
+          studentList.length - present,
+          0
+        );
+
+      el.dataStats.textContent =
+        studentList.length +
+        ' siswa terdaftar • ' +
+        present +
+        ' sudah/akan dicatat • ' +
+        notPresent +
+        ' belum absen' +
+        (pending > 0
+          ? ' • ' + pending + ' sedang disinkronkan'
+          : '');
     }
 
     async function scanFromFile(event) {
@@ -1887,6 +2291,14 @@
         event.target.files[0];
 
       if (!file || busy) {
+        return;
+      }
+
+      if (!dataReady) {
+        setStatus(
+          'Data belum siap. Tunggu proses persiapan selesai.',
+          'error'
+        );
         return;
       }
 
@@ -1907,8 +2319,7 @@
         await onScanSuccess(decodedText);
       } catch (error) {
         showError(
-          'QR tidak terbaca dari foto. ' +
-          'Ambil foto lebih dekat, terang, dan tidak buram.'
+          'QR tidak terbaca dari foto. Ambil foto lebih dekat, terang, dan tidak buram.'
         );
       } finally {
         try {
@@ -1916,7 +2327,7 @@
             await fileScanner.clear();
           }
         } catch (ignored) {
-          // Abaikan kegagalan pembersihan.
+          // Abaikan.
         }
 
         fileScanner = null;
@@ -1924,14 +2335,23 @@
     }
 
     /**
-     * Setelah QR terbaca, data langsung dikirim.
-     * Tidak ada tombol OK untuk scan pertama.
+     * FAST MODE:
+     * QR dicocokkan dengan daftar siswa di memori browser.
+     * Browser tidak menunggu Sheet1 untuk menentukan nama/duplikat.
      */
     async function onScanSuccess(decodedText) {
       const cleanText =
         String(decodedText || '').trim();
 
       if (!cleanText || busy) {
+        return;
+      }
+
+      if (!dataReady) {
+        setStatus(
+          'Data belum siap. Tunggu sampai muncul ✓ Data Siap.',
+          'error'
+        );
         return;
       }
 
@@ -1949,36 +2369,118 @@
         showError(
           'Pilih tanggal absensi terlebih dahulu.'
         );
-
         return;
       }
+
+      const student =
+        findLocalStudent(cleanText);
 
       busy = true;
       updateCameraControls();
 
       currentRawQr = cleanText;
       currentDisplayName =
-        labelFromQr(cleanText);
-
+        student
+          ? student.nama
+          : labelFromQr(cleanText);
+      currentStudent = student;
       duplicateData = null;
 
-      if (
-        cameraScanner &&
-        cameraRunning
-      ) {
-        try {
-          cameraScanner.pause(true);
-        } catch (ignored) {
-          // Abaikan jika kamera tidak dapat dijeda.
+      pauseScanner();
+
+      if (!student) {
+        showError(
+          'QR tidak cocok dengan NIS atau nama siswa pada data yang sudah dimuat. Jika data siswa baru diubah, tekan Refresh Data Siswa.'
+        );
+        return;
+      }
+
+      const studentKey =
+        canonicalStudentKeyLocal(student);
+
+      const existing =
+        attendanceLookup.get(studentKey);
+
+      if (existing) {
+        if (
+          String(existing.syncState || '')
+            .startsWith('pending')
+        ) {
+          showSuccess({
+            title: 'Sedang Disinkronkan',
+            name: student.nama,
+            message:
+              'Data ini sudah diterima aplikasi dan sedang dikirim ke Google Sheet.'
+          });
+
+          scheduleFastResume();
+          return;
+        }
+
+        showDuplicate({
+          nama: student.nama,
+          nis: student.nis,
+          kelas: student.kelas,
+          existingTime: existing.jam,
+          studentKey: studentKey
+        });
+        return;
+      }
+
+      const estimatedTime =
+        papuaTimeNow();
+
+      attendanceLookup.set(
+        studentKey,
+        {
+          nis: student.nis || '',
+          nama: student.nama || '',
+          kelas: student.kelas || '',
+          jam: estimatedTime,
+          syncState: 'pending_scan'
+        }
+      );
+
+      updateDataStats();
+
+      enqueueSync({
+        clientId: makeId('scan'),
+        operation: 'scan',
+        tanggal: el.tanggal.value,
+        qr: cleanText,
+        studentKey: studentKey,
+        student: {
+          nis: student.nis || '',
+          nama: student.nama || '',
+          kelas: student.kelas || ''
+        },
+        optimisticTime: estimatedTime,
+        attempts: 0
+      });
+
+      showSuccess({
+        title: 'Absensi Diterima',
+        name: student.nama,
+        message:
+          'Jam sekitar ' +
+          estimatedTime +
+          ' • sedang disimpan di belakang layar'
+      });
+
+      scheduleFastResume();
+    }
+
+    function findLocalStudent(rawQr) {
+      const keys =
+        candidateKeysLocal(rawQr);
+
+      for (let i = 0; i < keys.length; i++) {
+        if (studentLookup.has(keys[i])) {
+          return studentLookup.get(keys[i]);
         }
       }
 
-      showProcessing(
-        currentDisplayName,
-        'Memeriksa dan menyimpan data...'
-      );
-
-      sendBackend('scan');
+      return null;
     }
 
     function labelFromQr(raw) {
@@ -2009,6 +2511,90 @@
         : raw;
     }
 
+    function candidateKeysLocal(raw) {
+      const values = [
+        String(raw || '').trim()
+      ];
+
+      try {
+        const parsed = JSON.parse(raw);
+
+        [
+          'id',
+          'kode',
+          'kodeQr',
+          'nis',
+          'nama',
+          'name'
+        ].forEach(function(key) {
+          if (
+            parsed &&
+            parsed[key] != null
+          ) {
+            values.push(
+              String(parsed[key])
+            );
+          }
+        });
+      } catch (ignored) {
+        // Bukan JSON.
+      }
+
+      String(raw || '')
+        .split('|')
+        .forEach(function(part) {
+          values.push(part);
+        });
+
+      return Array.from(
+        new Set(
+          values
+            .map(normalizeLocal)
+            .filter(Boolean)
+        )
+      );
+    }
+
+    function normalizeLocal(value) {
+      return String(value || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+    }
+
+    function canonicalStudentKeyLocal(student) {
+      const nis =
+        normalizeLocal(
+          student && student.nis
+        );
+
+      if (nis) {
+        return 'nis:' + nis;
+      }
+
+      const nama =
+        normalizeLocal(
+          student && student.nama
+        );
+
+      return nama
+        ? 'nama:' + nama
+        : '';
+    }
+
+    function pauseScanner() {
+      if (
+        cameraScanner &&
+        cameraRunning
+      ) {
+        try {
+          cameraScanner.pause(true);
+        } catch (ignored) {
+          // Abaikan.
+        }
+      }
+    }
+
     function showProcessing(name, message) {
       hideAllPanels();
 
@@ -2018,164 +2604,13 @@
       el.processingPanel
         .querySelector('.panel-message')
         .textContent =
-          message ||
-          'Mohon tunggu. Sistem sedang memeriksa data.';
+          message || 'Mohon tunggu.';
 
       el.processingPanel.style.display =
         'block';
 
       setStatus(
-        message ||
-        'Sedang memproses data...'
-      );
-    }
-
-    function sendBackend(action) {
-      clearTimeout(backendTimer);
-
-      pendingAction = action;
-
-      pendingNonce =
-        Date.now().toString(36) +
-        Math.random()
-          .toString(36)
-          .slice(2);
-
-      const form =
-        document.createElement('form');
-
-      form.method = 'POST';
-      form.action = WEB_APP_URL;
-      form.target = 'gasFrame';
-
-      addField(
-        form,
-        'action',
-        action
-      );
-
-      addField(
-        form,
-        'tanggal',
-        el.tanggal.value
-      );
-
-      addField(
-        form,
-        'qr',
-        currentRawQr
-      );
-
-      addField(
-        form,
-        'nonce',
-        pendingNonce
-      );
-
-      document.body.appendChild(form);
-
-      form.submit();
-      form.remove();
-
-      backendTimer = setTimeout(
-        function() {
-          if (!pendingNonce) {
-            return;
-          }
-
-          pendingNonce = '';
-
-          showError(
-            'Tidak ada respons dari backend. ' +
-            'Periksa deployment Apps Script dan pastikan ' +
-            'kode terbaru sudah dibuat sebagai versi baru.'
-          );
-        },
-        BACKEND_TIMEOUT_MS
-      );
-    }
-
-    function addField(form, name, value) {
-      const input =
-        document.createElement('input');
-
-      input.type = 'hidden';
-      input.name = name;
-      input.value = value;
-
-      form.appendChild(input);
-    }
-
-    function handleBackendMessage(event) {
-      const data = event.data;
-
-      if (
-        !data ||
-        data.source !==
-          'ABSENSI_QR_BACKEND' ||
-        !pendingNonce ||
-        data.nonce !== pendingNonce
-      ) {
-        return;
-      }
-
-      clearTimeout(backendTimer);
-
-      pendingNonce = '';
-
-      if (!data.ok) {
-        showError(
-          data.message ||
-          'Data gagal diproses.'
-        );
-
-        return;
-      }
-
-      if (data.status === 'created') {
-        showSuccess({
-          title: 'Absen Berhasil Disimpan',
-          name: data.nama,
-          message:
-            'Jam absen: ' +
-            (data.time || '-')
-        });
-
-        scheduleResume(
-          data.nama,
-          data.time
-        );
-
-        return;
-      }
-
-      if (data.status === 'duplicate') {
-        showDuplicate(data);
-        return;
-      }
-
-      if (data.status === 'updated') {
-        showSuccess({
-          title: 'Jam Absen Berhasil Diupdate',
-          name: data.nama,
-          message:
-            'Jam lama: ' +
-            (data.oldTime || '-') +
-            ' → Jam baru: ' +
-            (data.time || '-')
-        });
-
-        scheduleResume(
-          data.nama,
-          data.time
-        );
-
-        return;
-      }
-
-      showError(
-        data.message ||
-        'Respons backend tidak dikenali.'
+        message || 'Sedang memproses...'
       );
     }
 
@@ -2184,7 +2619,7 @@
 
       el.successTitle.textContent =
         options.title ||
-        'Absen Berhasil Disimpan';
+        'Absensi Diterima';
 
       el.successName.textContent =
         options.name ||
@@ -2199,7 +2634,7 @@
 
       setStatus(
         options.title ||
-        'Absensi berhasil.',
+        'Absensi diterima.',
         'ok'
       );
     }
@@ -2232,6 +2667,7 @@
       if (
         !busy ||
         !currentRawQr ||
+        !currentStudent ||
         !duplicateData
       ) {
         return;
@@ -2240,13 +2676,59 @@
       el.updateButton.disabled = true;
       el.keepButton.disabled = true;
 
-      showProcessing(
-        duplicateData.nama ||
-        currentDisplayName,
-        'Memperbarui jam absensi...'
+      const studentKey =
+        duplicateData.studentKey ||
+        canonicalStudentKeyLocal(
+          currentStudent
+        );
+
+      const oldTime =
+        duplicateData.existingTime || '-';
+
+      const newEstimatedTime =
+        papuaTimeNow();
+
+      attendanceLookup.set(
+        studentKey,
+        {
+          nis: currentStudent.nis || '',
+          nama: currentStudent.nama || '',
+          kelas: currentStudent.kelas || '',
+          jam: newEstimatedTime,
+          syncState: 'pending_update'
+        }
       );
 
-      sendBackend('update');
+      updateDataStats();
+
+      enqueueSync({
+        clientId: makeId('update'),
+        operation: 'update',
+        tanggal: el.tanggal.value,
+        qr: currentRawQr,
+        studentKey: studentKey,
+        student: {
+          nis: currentStudent.nis || '',
+          nama: currentStudent.nama || '',
+          kelas: currentStudent.kelas || ''
+        },
+        optimisticTime: newEstimatedTime,
+        previousTime: oldTime,
+        attempts: 0
+      });
+
+      showSuccess({
+        title: 'Update Diterima',
+        name: currentStudent.nama,
+        message:
+          'Jam lama: ' +
+          oldTime +
+          ' → sekitar ' +
+          newEstimatedTime +
+          ' • sedang disimpan'
+      });
+
+      scheduleFastResume();
     }
 
     function keepExistingAttendance() {
@@ -2254,7 +2736,6 @@
         finishCurrentScan(
           'Data lama dipertahankan.'
         );
-
         return;
       }
 
@@ -2268,10 +2749,7 @@
           (duplicateData.existingTime || '-')
       });
 
-      scheduleResume(
-        duplicateData.nama,
-        duplicateData.existingTime
-      );
+      scheduleFastResume();
     }
 
     function showError(message) {
@@ -2292,34 +2770,29 @@
       );
     }
 
-    function retryLastRequest() {
+    function retryCurrentQr() {
       if (!currentRawQr) {
         finishCurrentScan(
-          'Tidak ada data untuk dicoba ulang.'
+          'Tidak ada QR untuk dicoba ulang.'
         );
-
         return;
       }
 
-      el.retryButton.disabled = true;
-      el.continueButton.disabled = true;
+      const rawQr = currentRawQr;
 
-      const action =
-        pendingAction === 'update'
-          ? 'update'
-          : 'scan';
-
-      showProcessing(
-        currentDisplayName,
-        action === 'update'
-          ? 'Mencoba memperbarui kembali...'
-          : 'Mencoba menyimpan kembali...'
+      finishCurrentScan(
+        'Mencoba membaca ulang data...'
       );
 
-      sendBackend(action);
+      setTimeout(
+        function() {
+          onScanSuccess(rawQr);
+        },
+        120
+      );
     }
 
-    function scheduleResume(name, time) {
+    function scheduleFastResume() {
       lastHandledQr = currentRawQr;
       lastHandledAt = Date.now();
 
@@ -2331,19 +2804,16 @@
             'Kamera siap memindai siswa berikutnya.'
           );
         },
-        SUCCESS_DISPLAY_MS
+        FAST_SUCCESS_DISPLAY_MS
       );
     }
 
     function finishCurrentScan(message) {
-      clearTimeout(backendTimer);
       clearTimeout(successTimer);
-
-      pendingNonce = '';
-      pendingAction = '';
 
       currentRawQr = '';
       currentDisplayName = '';
+      currentStudent = null;
       duplicateData = null;
 
       busy = false;
@@ -2365,7 +2835,7 @@
         try {
           cameraScanner.resume();
         } catch (ignored) {
-          // Abaikan jika scanner sudah berjalan.
+          // Scanner mungkin sudah berjalan.
         }
       }
 
@@ -2374,6 +2844,605 @@
         'Kamera siap memindai.',
         'ok'
       );
+    }
+
+    /**
+     * Menambahkan transaksi ke antrian lokal.
+     * Scanner tidak perlu menunggu transaksi ini selesai.
+     */
+    function enqueueSync(item) {
+      syncQueue.push(item);
+      updateSyncStatus();
+      processSyncQueue();
+    }
+
+    async function processSyncQueue() {
+      if (syncWorkerRunning) {
+        return;
+      }
+
+      syncWorkerRunning = true;
+
+      try {
+        while (syncQueue.length > 0) {
+          const batch =
+            syncQueue.splice(
+              0,
+              MAX_SYNC_BATCH
+            );
+
+          syncInFlightCount =
+            batch.length;
+
+          updateSyncStatus();
+
+          try {
+            const response =
+              await sendBackendRequest(
+                'batch_sync',
+                {
+                  items: JSON.stringify(
+                    batch.map(
+                      function(item) {
+                        return {
+                          clientId:
+                            item.clientId,
+                          operation:
+                            item.operation,
+                          tanggal:
+                            item.tanggal,
+                          qr:
+                            item.qr
+                        };
+                      }
+                    )
+                  )
+                }
+              );
+
+            if (
+              !response.ok ||
+              response.status !==
+                'batch_complete'
+            ) {
+              throw new Error(
+                response.message ||
+                'Batch gagal disimpan.'
+              );
+            }
+
+            const resultMap =
+              new Map();
+
+            (
+              Array.isArray(
+                response.results
+              )
+                ? response.results
+                : []
+            ).forEach(function(result) {
+              resultMap.set(
+                String(
+                  result.clientId || ''
+                ),
+                result
+              );
+            });
+
+            batch.forEach(function(item) {
+              const result =
+                resultMap.get(
+                  item.clientId
+                );
+
+              if (!result) {
+                handleSyncFailure(
+                  item,
+                  'Backend tidak mengembalikan hasil transaksi.'
+                );
+                return;
+              }
+
+              if (!result.ok) {
+                handleSyncFailure(
+                  item,
+                  result.message ||
+                    'Data gagal disimpan.',
+                  result.status
+                );
+                return;
+              }
+
+              applySyncSuccess(
+                item,
+                result
+              );
+            });
+          } catch (error) {
+            batch.forEach(
+              function(item) {
+                retryOrFailSync(
+                  item,
+                  readableBackendError(
+                    error
+                  )
+                );
+              }
+            );
+
+            if (syncQueue.length > 0) {
+              await sleep(
+                RETRY_DELAY_MS
+              );
+            }
+          } finally {
+            syncInFlightCount = 0;
+            updateSyncStatus();
+          }
+        }
+      } finally {
+        syncWorkerRunning = false;
+        updateSyncStatus();
+
+        if (syncQueue.length > 0) {
+          processSyncQueue();
+        }
+      }
+    }
+
+    function applySyncSuccess(
+      item,
+      result
+    ) {
+      if (
+        item.tanggal ===
+        el.tanggal.value
+      ) {
+        if (
+          result.status ===
+            'created' ||
+          result.status ===
+            'updated'
+        ) {
+          attendanceLookup.set(
+            item.studentKey,
+            {
+              nis:
+                result.nis ||
+                item.student.nis ||
+                '',
+              nama:
+                result.nama ||
+                item.student.nama ||
+                '',
+              kelas:
+                result.kelas ||
+                item.student.kelas ||
+                '',
+              jam:
+                result.time ||
+                item.optimisticTime ||
+                '-',
+              syncState: 'saved'
+            }
+          );
+        } else if (
+          result.status ===
+            'duplicate'
+        ) {
+          attendanceLookup.set(
+            item.studentKey,
+            {
+              nis:
+                result.nis ||
+                item.student.nis ||
+                '',
+              nama:
+                result.nama ||
+                item.student.nama ||
+                '',
+              kelas:
+                result.kelas ||
+                item.student.kelas ||
+                '',
+              jam:
+                result.existingTime ||
+                item.optimisticTime ||
+                '-',
+              syncState: 'saved'
+            }
+          );
+        }
+
+        updateDataStats();
+      }
+    }
+
+    function handleSyncFailure(
+      item,
+      message,
+      status
+    ) {
+      const permanent =
+        status ===
+          'student_not_found' ||
+        status ===
+          'invalid_date' ||
+        status ===
+          'empty_qr' ||
+        status ===
+          'attendance_not_found';
+
+      if (permanent) {
+        markSyncFailed(
+          item,
+          message
+        );
+        return;
+      }
+
+      retryOrFailSync(
+        item,
+        message
+      );
+    }
+
+    function retryOrFailSync(
+      item,
+      message
+    ) {
+      item.attempts =
+        Number(item.attempts || 0) + 1;
+
+      item.lastError =
+        message ||
+        'Sinkronisasi gagal.';
+
+      if (
+        item.attempts <=
+        MAX_AUTO_RETRY
+      ) {
+        syncQueue.push(item);
+      } else {
+        markSyncFailed(
+          item,
+          item.lastError
+        );
+      }
+    }
+
+    function markSyncFailed(
+      item,
+      message
+    ) {
+      item.lastError =
+        message ||
+        'Sinkronisasi gagal.';
+
+      failedSyncItems.push(item);
+
+      if (
+        item.tanggal ===
+        el.tanggal.value
+      ) {
+        if (
+          item.operation ===
+          'scan'
+        ) {
+          attendanceLookup.delete(
+            item.studentKey
+          );
+        } else if (
+          item.operation ===
+          'update'
+        ) {
+          attendanceLookup.set(
+            item.studentKey,
+            {
+              nis:
+                item.student.nis || '',
+              nama:
+                item.student.nama || '',
+              kelas:
+                item.student.kelas || '',
+              jam:
+                item.previousTime || '-',
+              syncState: 'saved'
+            }
+          );
+        }
+
+        updateDataStats();
+      }
+
+      updateSyncStatus();
+    }
+
+    function retryFailedSync() {
+      if (
+        failedSyncItems.length === 0
+      ) {
+        return;
+      }
+
+      const items =
+        failedSyncItems.splice(0);
+
+      items.forEach(function(item) {
+        item.attempts = 0;
+        syncQueue.push(item);
+
+        if (
+          item.tanggal ===
+          el.tanggal.value
+        ) {
+          attendanceLookup.set(
+            item.studentKey,
+            {
+              nis:
+                item.student.nis || '',
+              nama:
+                item.student.nama || '',
+              kelas:
+                item.student.kelas || '',
+              jam:
+                item.optimisticTime ||
+                item.previousTime ||
+                '-',
+              syncState:
+                item.operation ===
+                  'update'
+                  ? 'pending_update'
+                  : 'pending_scan'
+            }
+          );
+        }
+      });
+
+      updateDataStats();
+      updateSyncStatus();
+      processSyncQueue();
+    }
+
+    function updateSyncStatus() {
+      const pending =
+        syncQueue.length +
+        syncInFlightCount;
+
+      if (
+        failedSyncItems.length > 0
+      ) {
+        el.syncStatus.className =
+          'sync-box error';
+
+        el.syncStatus.textContent =
+          failedSyncItems.length +
+          ' data gagal tersinkron. Jangan tutup halaman; tekan Coba Sinkronisasi Lagi.';
+
+        el.retrySyncButton.style.display =
+          'block';
+        return;
+      }
+
+      el.retrySyncButton.style.display =
+        'none';
+
+      if (pending > 0) {
+        el.syncStatus.className =
+          'sync-box pending';
+
+        el.syncStatus.textContent =
+          'Menyimpan di belakang layar: ' +
+          pending +
+          ' data menunggu/sedang diproses.';
+
+        return;
+      }
+
+      el.syncStatus.className =
+        'sync-box ok';
+
+      el.syncStatus.textContent =
+        '✓ Semua data tersimpan di Google Sheet.';
+    }
+
+    function makeId(prefix) {
+      return (
+        prefix +
+        '-' +
+        Date.now().toString(36) +
+        '-' +
+        Math.random()
+          .toString(36)
+          .slice(2, 9)
+      );
+    }
+
+    /**
+     * Request lintas origin menggunakan form POST + iframe unik.
+     * Iframe unik memungkinkan request bootstrap dan sinkronisasi
+     * dikelola berdasarkan nonce tanpa tertukar.
+     */
+    function sendBackendRequest(
+      action,
+      fields
+    ) {
+      return new Promise(
+        function(resolve, reject) {
+          const nonce =
+            makeId('req');
+
+          const frameName =
+            'gasFrame_' +
+            nonce.replace(
+              /[^a-zA-Z0-9_-]/g,
+              ''
+            );
+
+          const iframe =
+            document.createElement(
+              'iframe'
+            );
+
+          iframe.name = frameName;
+          iframe.title =
+            'Sinkronisasi absensi';
+          iframe.style.display = 'none';
+
+          document.body.appendChild(
+            iframe
+          );
+
+          const timer =
+            setTimeout(
+              function() {
+                cleanupRequest(
+                  nonce
+                );
+
+                reject(
+                  new Error(
+                    'Tidak ada respons dari backend dalam batas waktu.'
+                  )
+                );
+              },
+              BACKEND_TIMEOUT_MS
+            );
+
+          requestRegistry.set(
+            nonce,
+            {
+              resolve: resolve,
+              reject: reject,
+              timer: timer,
+              iframe: iframe
+            }
+          );
+
+          const form =
+            document.createElement(
+              'form'
+            );
+
+          form.method = 'POST';
+          form.action = WEB_APP_URL;
+          form.target = frameName;
+          form.style.display = 'none';
+
+          addField(
+            form,
+            'action',
+            action
+          );
+
+          addField(
+            form,
+            'nonce',
+            nonce
+          );
+
+          Object.keys(
+            fields || {}
+          ).forEach(function(key) {
+            addField(
+              form,
+              key,
+              fields[key]
+            );
+          });
+
+          document.body.appendChild(
+            form
+          );
+
+          form.submit();
+          form.remove();
+        }
+      );
+    }
+
+    function handleBackendMessage(event) {
+      const data = event.data;
+
+      if (
+        !data ||
+        data.source !==
+          'ABSENSI_QR_BACKEND' ||
+        !data.nonce
+      ) {
+        return;
+      }
+
+      const request =
+        requestRegistry.get(
+          data.nonce
+        );
+
+      if (!request) {
+        return;
+      }
+
+      request.resolve(data);
+      cleanupRequest(data.nonce);
+    }
+
+    function cleanupRequest(nonce) {
+      const request =
+        requestRegistry.get(nonce);
+
+      if (!request) {
+        return;
+      }
+
+      clearTimeout(
+        request.timer
+      );
+
+      if (
+        request.iframe &&
+        request.iframe.parentNode
+      ) {
+        request.iframe.parentNode
+          .removeChild(
+            request.iframe
+          );
+      }
+
+      requestRegistry.delete(
+        nonce
+      );
+    }
+
+    function addField(
+      form,
+      name,
+      value
+    ) {
+      const input =
+        document.createElement(
+          'input'
+        );
+
+      input.type = 'hidden';
+      input.name = name;
+      input.value =
+        value == null
+          ? ''
+          : String(value);
+
+      form.appendChild(input);
+    }
+
+    function readableBackendError(error) {
+      const message =
+        error && error.message
+          ? error.message
+          : String(
+              error ||
+              'Kesalahan tidak diketahui.'
+            );
+
+      return message;
     }
 
     function readableCameraError(error) {
@@ -2418,3 +3487,4 @@
   </script>
 </body>
 </html>
+
