@@ -13,9 +13,9 @@
     content="#0e7490"
   >
 
-  <title>Absensi Sholat Dzuhur — Otomatis</title>
+  <title>Absensi Sholat Dzuhur — Revisi v001</title>
 
-  <!-- BUILD: ABSENSI_OTOMATIS_UPDATE_KEEP_V1 -->
+  <!-- BUILD: APLIKASI_ABSEN_SHOLAT_V001 -->
 
   <script
     src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js">
@@ -153,6 +153,31 @@
 
     #file-reader {
       display: none;
+    }
+
+    /*
+     * Flip hanya mengubah tampilan video seperti cermin.
+     * Proses pembacaan QR tetap memakai gambar kamera asli.
+     */
+    #reader.mirror-preview video {
+      transform: scaleX(-1) !important;
+      transform-origin: center center !important;
+    }
+
+    .camera-info {
+      margin-top: 9px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      background: #f1f7f8;
+      color: #526b73;
+      font-size: 12px;
+      line-height: 1.4;
+      text-align: center;
+    }
+
+    .camera-control-active {
+      background: #0d9488;
+      color: #ffffff;
     }
 
     .panel {
@@ -312,7 +337,7 @@
       Pindai QR siswa. Absensi pertama langsung tersimpan otomatis.
       <br>
       <span class="version">
-        Versi Otomatis — Update / Keep
+        Revisi v001 — Otomatis, Update / Keep, Flip & Ganti Kamera
       </span>
     </p>
 
@@ -342,6 +367,34 @@
       >
         Matikan Kamera
       </button>
+    </div>
+
+    <div class="actions">
+      <button
+        id="flipButton"
+        class="secondary"
+        type="button"
+        aria-pressed="false"
+        disabled
+      >
+        Flip Tampilan
+      </button>
+
+      <button
+        id="switchCameraButton"
+        class="secondary"
+        type="button"
+        disabled
+      >
+        Ganti Kamera
+      </button>
+    </div>
+
+    <div
+      id="cameraInfo"
+      class="camera-info"
+    >
+      Kamera belum dipilih.
     </div>
 
     <label
@@ -508,7 +561,8 @@
 
     <p class="note">
       Setelah absensi berhasil, kamera otomatis melanjutkan
-      pemindaian untuk siswa berikutnya.
+      pemindaian. Flip hanya membalik tampilan, sedangkan
+      Ganti Kamera memilih kamera depan/belakang atau kamera lain.
     </p>
 
     <iframe
@@ -534,7 +588,12 @@
     let fileScanner = null;
 
     let cameraRunning = false;
+    let cameraTransitioning = false;
     let busy = false;
+
+    let availableCameras = [];
+    let currentCameraIndex = -1;
+    let previewMirrored = false;
 
     let currentRawQr = '';
     let currentDisplayName = '';
@@ -558,6 +617,18 @@
 
       stopButton:
         document.getElementById('stopButton'),
+
+      flipButton:
+        document.getElementById('flipButton'),
+
+      switchCameraButton:
+        document.getElementById('switchCameraButton'),
+
+      cameraInfo:
+        document.getElementById('cameraInfo'),
+
+      reader:
+        document.getElementById('reader'),
 
       fileInput:
         document.getElementById('fileInput'),
@@ -612,6 +683,9 @@
     };
 
     setToday();
+    applyPreviewFlip();
+    updateCameraInfo();
+    updateCameraControls();
 
     el.startButton.addEventListener(
       'click',
@@ -621,6 +695,16 @@
     el.stopButton.addEventListener(
       'click',
       stopCamera
+    );
+
+    el.flipButton.addEventListener(
+      'click',
+      togglePreviewFlip
+    );
+
+    el.switchCameraButton.addEventListener(
+      'click',
+      switchCamera
     );
 
     el.fileInput.addEventListener(
@@ -682,8 +766,17 @@
       el.errorPanel.style.display = 'none';
     }
 
+    /**
+     * Meminta daftar kamera dan membuka kamera yang paling sesuai.
+     * Kamera belakang diutamakan pada HP; jika tidak ditemukan,
+     * kamera pertama yang tersedia digunakan.
+     */
     async function startCamera() {
-      if (cameraRunning) {
+      if (
+        cameraRunning ||
+        cameraTransitioning ||
+        busy
+      ) {
         return;
       }
 
@@ -692,133 +785,533 @@
           'Library pemindai QR gagal dimuat. Periksa koneksi internet.',
           'error'
         );
-
         return;
       }
 
-      el.startButton.disabled = true;
-
-      setStatus(
-        'Mencari perangkat kamera...'
-      );
+      cameraTransitioning = true;
+      updateCameraControls();
+      setStatus('Mencari perangkat kamera...');
 
       try {
-        const devices =
-          await Html5Qrcode.getCameras();
+        await refreshCameraList();
 
-        if (!devices || devices.length === 0) {
+        if (availableCameras.length === 0) {
           throw new Error(
             'Tidak ada perangkat kamera yang ditemukan.'
           );
         }
 
-        const preferredCamera =
-          devices.find(function(device) {
-            const label =
-              String(device.label || '').toLowerCase();
+        const preferredIndex =
+          findPreferredInitialCameraIndex();
 
-            return (
-              label.includes('back') ||
-              label.includes('rear') ||
-              label.includes('environment') ||
-              label.includes('belakang')
-            );
-          }) ||
-          devices[0];
-
-        cameraScanner =
-          new Html5Qrcode('reader');
-
-        const config = {
-          fps: 10,
-
-          qrbox: function(
-            viewfinderWidth,
-            viewfinderHeight
-          ) {
-            const size = Math.floor(
-              Math.min(
-                viewfinderWidth,
-                viewfinderHeight
-              ) * .72
-            );
-
-            return {
-              width: size,
-              height: size
-            };
-          },
-
-          aspectRatio: 1.333334
-        };
-
-        await cameraScanner.start(
-          preferredCamera.id,
-          config,
-          onScanSuccess,
-          function() {
-            // Kesalahan pembacaan tiap frame diabaikan.
-          }
+        await activateCameraByIndex(
+          preferredIndex
         );
-
-        cameraRunning = true;
-
-        el.stopButton.disabled = false;
 
         setStatus(
           'Kamera aktif. Arahkan ke QR siswa.',
           'ok'
         );
       } catch (error) {
-        cameraScanner = null;
-        cameraRunning = false;
-
-        el.startButton.disabled = false;
-        el.stopButton.disabled = true;
+        await cleanupScanner();
 
         setStatus(
           'Kamera gagal dibuka: ' +
           readableCameraError(error),
           'error'
         );
+      } finally {
+        cameraTransitioning = false;
+        updateCameraControls();
       }
+    }
+
+    /**
+     * Mengambil daftar kamera yang diizinkan browser.
+     */
+    async function refreshCameraList() {
+      const previousId = getCurrentCameraId();
+      const devices = await Html5Qrcode.getCameras();
+
+      availableCameras = Array.isArray(devices)
+        ? devices
+        : [];
+
+      if (previousId) {
+        const matchedIndex =
+          availableCameras.findIndex(
+            function(device) {
+              return device.id === previousId;
+            }
+          );
+
+        if (matchedIndex >= 0) {
+          currentCameraIndex = matchedIndex;
+        }
+      }
+
+      updateCameraInfo();
+      updateCameraControls();
+    }
+
+    function findPreferredInitialCameraIndex() {
+      const rearIndex =
+        availableCameras.findIndex(
+          function(device) {
+            return getCameraFacing(device) === 'back';
+          }
+        );
+
+      return rearIndex >= 0
+        ? rearIndex
+        : 0;
+    }
+
+    /**
+     * Mengaktifkan kamera berdasarkan camera ID.
+     */
+    async function activateCameraByIndex(index) {
+      if (
+        index < 0 ||
+        index >= availableCameras.length
+      ) {
+        throw new Error(
+          'Pilihan kamera tidak valid.'
+        );
+      }
+
+      const device = availableCameras[index];
+
+      cameraScanner =
+        new Html5Qrcode('reader');
+
+      const config = {
+        fps: 10,
+
+        qrbox: function(
+          viewfinderWidth,
+          viewfinderHeight
+        ) {
+          const size = Math.floor(
+            Math.min(
+              viewfinderWidth,
+              viewfinderHeight
+            ) * .72
+          );
+
+          return {
+            width: size,
+            height: size
+          };
+        },
+
+        aspectRatio: 1.333334
+      };
+
+      await cameraScanner.start(
+        device.id,
+        config,
+        onScanSuccess,
+        function() {
+          // Kesalahan pembacaan setiap frame diabaikan.
+        }
+      );
+
+      currentCameraIndex = index;
+      cameraRunning = true;
+
+      applyPreviewFlip();
+      updateCameraInfo();
+      updateCameraControls();
+    }
+
+    /**
+     * Berpindah dari kamera belakang ke depan, atau sebaliknya.
+     * Pada laptop dengan lebih dari dua kamera, tombol akan
+     * berpindah ke kamera berikutnya jika label depan/belakang
+     * tidak dapat dikenali.
+     */
+    async function switchCamera() {
+      if (busy) {
+        setStatus(
+          'Selesaikan proses absensi terlebih dahulu sebelum mengganti kamera.',
+          'error'
+        );
+        return;
+      }
+
+      if (
+        !cameraRunning ||
+        cameraTransitioning
+      ) {
+        return;
+      }
+
+      cameraTransitioning = true;
+      updateCameraControls();
+      setStatus('Mengganti sumber kamera...');
+
+      const previousCameraId =
+        getCurrentCameraId();
+
+      try {
+        await refreshCameraList();
+
+        if (availableCameras.length < 2) {
+          throw new Error(
+            'Perangkat hanya memiliki satu kamera yang dapat digunakan.'
+          );
+        }
+
+        const nextIndex =
+          findNextCameraIndex();
+
+        await cleanupScanner();
+        await activateCameraByIndex(nextIndex);
+
+        setStatus(
+          'Kamera berhasil diganti. Arahkan ke QR siswa.',
+          'ok'
+        );
+      } catch (error) {
+        /*
+         * Jika kamera baru gagal, coba aktifkan kembali kamera lama.
+         */
+        try {
+          const restoreIndex =
+            availableCameras.findIndex(
+              function(device) {
+                return device.id === previousCameraId;
+              }
+            );
+
+          if (
+            !cameraRunning &&
+            restoreIndex >= 0
+          ) {
+            await cleanupScanner();
+            await activateCameraByIndex(restoreIndex);
+          }
+        } catch (restoreError) {
+          console.error(
+            'Kamera lama juga gagal dipulihkan:',
+            restoreError
+          );
+        }
+
+        setStatus(
+          'Gagal mengganti kamera: ' +
+          readableCameraError(error),
+          'error'
+        );
+      } finally {
+        cameraTransitioning = false;
+        updateCameraControls();
+      }
+    }
+
+    function findNextCameraIndex() {
+      const currentDevice =
+        availableCameras[currentCameraIndex];
+
+      const currentFacing =
+        getCameraFacing(currentDevice);
+
+      if (currentFacing === 'back') {
+        const frontIndex =
+          availableCameras.findIndex(
+            function(device) {
+              return getCameraFacing(device) === 'front';
+            }
+          );
+
+        if (frontIndex >= 0) {
+          return frontIndex;
+        }
+      }
+
+      if (currentFacing === 'front') {
+        const backIndex =
+          availableCameras.findIndex(
+            function(device) {
+              return getCameraFacing(device) === 'back';
+            }
+          );
+
+        if (backIndex >= 0) {
+          return backIndex;
+        }
+      }
+
+      return (
+        currentCameraIndex + 1
+      ) % availableCameras.length;
+    }
+
+    /**
+     * Mendeteksi kamera depan/belakang dari label perangkat.
+     */
+    function getCameraFacing(device) {
+      const label = String(
+        device && device.label
+          ? device.label
+          : ''
+      ).toLowerCase();
+
+      const frontWords = [
+        'front',
+        'user',
+        'face',
+        'depan',
+        'facetime'
+      ];
+
+      const backWords = [
+        'back',
+        'rear',
+        'environment',
+        'belakang',
+        'world'
+      ];
+
+      if (
+        frontWords.some(
+          function(word) {
+            return label.includes(word);
+          }
+        )
+      ) {
+        return 'front';
+      }
+
+      if (
+        backWords.some(
+          function(word) {
+            return label.includes(word);
+          }
+        )
+      ) {
+        return 'back';
+      }
+
+      return 'unknown';
+    }
+
+    function getCurrentCameraId() {
+      const device =
+        availableCameras[currentCameraIndex];
+
+      return device
+        ? device.id
+        : '';
+    }
+
+    /**
+     * Membalik tampilan secara horizontal seperti cermin.
+     * Ini tidak mengganti sumber kamera dan tidak mengubah data QR.
+     */
+    function togglePreviewFlip() {
+      if (!cameraRunning) {
+        return;
+      }
+
+      previewMirrored = !previewMirrored;
+
+      applyPreviewFlip();
+      updateCameraInfo();
+      updateCameraControls();
+
+      setStatus(
+        previewMirrored
+          ? 'Tampilan kamera dibalik seperti cermin.'
+          : 'Tampilan kamera dikembalikan ke posisi normal.',
+        'ok'
+      );
+    }
+
+    function applyPreviewFlip() {
+      el.reader.classList.toggle(
+        'mirror-preview',
+        previewMirrored
+      );
+
+      el.flipButton.setAttribute(
+        'aria-pressed',
+        previewMirrored ? 'true' : 'false'
+      );
+
+      el.flipButton.textContent =
+        previewMirrored
+          ? 'Tampilan Normal'
+          : 'Flip Tampilan';
+
+      el.flipButton.classList.toggle(
+        'camera-control-active',
+        previewMirrored
+      );
+    }
+
+    function updateCameraInfo() {
+      if (!cameraRunning) {
+        el.cameraInfo.textContent =
+          availableCameras.length > 0
+            ? availableCameras.length +
+              ' kamera ditemukan. Kamera belum aktif.'
+            : 'Kamera belum dipilih.';
+        return;
+      }
+
+      const device =
+        availableCameras[currentCameraIndex];
+
+      const label =
+        device && device.label
+          ? device.label
+          : 'Kamera ' +
+            (currentCameraIndex + 1);
+
+      const facing =
+        getCameraFacing(device);
+
+      const facingText =
+        facing === 'front'
+          ? 'kamera depan'
+          : facing === 'back'
+            ? 'kamera belakang'
+            : 'kamera terpilih';
+
+      el.cameraInfo.textContent =
+        label +
+        ' — ' +
+        facingText +
+        (previewMirrored
+          ? ' — tampilan di-flip'
+          : ' — tampilan normal');
+    }
+
+    function updateCameraControls() {
+      el.startButton.disabled =
+        cameraRunning ||
+        cameraTransitioning ||
+        busy;
+
+      el.stopButton.disabled =
+        !cameraRunning ||
+        cameraTransitioning ||
+        busy;
+
+      el.flipButton.disabled =
+        !cameraRunning ||
+        cameraTransitioning ||
+        busy;
+
+      el.switchCameraButton.disabled =
+        !cameraRunning ||
+        cameraTransitioning ||
+        busy ||
+        availableCameras.length < 2;
+
+      if (availableCameras.length === 1) {
+        el.switchCameraButton.textContent =
+          'Kamera Lain Tidak Ada';
+      } else if (
+        cameraRunning &&
+        availableCameras.length > 1
+      ) {
+        const currentDevice =
+          availableCameras[currentCameraIndex];
+
+        const currentFacing =
+          getCameraFacing(currentDevice);
+
+        const hasFront =
+          availableCameras.some(
+            function(device) {
+              return getCameraFacing(device) === 'front';
+            }
+          );
+
+        const hasBack =
+          availableCameras.some(
+            function(device) {
+              return getCameraFacing(device) === 'back';
+            }
+          );
+
+        if (
+          currentFacing === 'back' &&
+          hasFront
+        ) {
+          el.switchCameraButton.textContent =
+            'Gunakan Kamera Depan';
+        } else if (
+          currentFacing === 'front' &&
+          hasBack
+        ) {
+          el.switchCameraButton.textContent =
+            'Gunakan Kamera Belakang';
+        } else {
+          el.switchCameraButton.textContent =
+            'Ganti Kamera';
+        }
+      } else {
+        el.switchCameraButton.textContent =
+          'Ganti Kamera';
+      }
+    }
+
+    /**
+     * Menghentikan dan membersihkan scanner tanpa menghapus
+     * daftar kamera maupun pilihan flip tampilan.
+     */
+    async function cleanupScanner() {
+      if (cameraScanner) {
+        try {
+          if (cameraRunning) {
+            await cameraScanner.stop();
+          }
+        } catch (ignored) {
+          // Scanner mungkin sudah berhenti.
+        }
+
+        try {
+          await cameraScanner.clear();
+        } catch (ignored) {
+          // Area scanner mungkin sudah bersih.
+        }
+      }
+
+      cameraScanner = null;
+      cameraRunning = false;
     }
 
     async function stopCamera() {
       clearTimeout(successTimer);
       clearTimeout(backendTimer);
 
-      if (
-        cameraScanner &&
-        cameraRunning
-      ) {
-        try {
-          await cameraScanner.stop();
-          await cameraScanner.clear();
-        } catch (ignored) {
-          // Kamera mungkin sudah berhenti.
-        }
-      }
+      cameraTransitioning = true;
+      updateCameraControls();
 
-      cameraScanner = null;
-      cameraRunning = false;
+      await cleanupScanner();
+
       busy = false;
-
       currentRawQr = '';
       currentDisplayName = '';
       duplicateData = null;
       pendingNonce = '';
       pendingAction = '';
+      currentCameraIndex = -1;
 
       hideAllPanels();
 
-      el.startButton.disabled = false;
-      el.stopButton.disabled = true;
       el.fileInput.value = '';
 
-      setStatus(
-        'Kamera dimatikan.'
-      );
+      cameraTransitioning = false;
+      applyPreviewFlip();
+      updateCameraInfo();
+      updateCameraControls();
+
+      setStatus('Kamera dimatikan.');
     }
 
     async function scanFromFile(event) {
@@ -894,6 +1387,7 @@
       }
 
       busy = true;
+      updateCameraControls();
 
       currentRawQr = cleanText;
       currentDisplayName =
@@ -1286,6 +1780,7 @@
       duplicateData = null;
 
       busy = false;
+      updateCameraControls();
 
       hideAllPanels();
 
