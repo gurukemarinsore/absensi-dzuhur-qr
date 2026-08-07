@@ -13,9 +13,9 @@
     content="#0e7490"
   >
 
-  <title>Absensi Sholat Dzuhur — Revisi v001</title>
+  <title>Absensi Sholat Dzuhur — Revisi v002</title>
 
-  <!-- BUILD: APLIKASI_ABSEN_SHOLAT_V001 -->
+  <!-- BUILD: APLIKASI_ABSEN_SHOLAT_V002 -->
 
   <script
     src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js">
@@ -337,7 +337,7 @@
       Pindai QR siswa. Absensi pertama langsung tersimpan otomatis.
       <br>
       <span class="version">
-        Revisi v001 — Otomatis, Update / Keep, Flip & Ganti Kamera
+        Revisi v002 — Perbaikan Kamera Depan HP
       </span>
     </p>
 
@@ -562,7 +562,7 @@
     <p class="note">
       Setelah absensi berhasil, kamera otomatis melanjutkan
       pemindaian. Flip hanya membalik tampilan, sedangkan
-      Ganti Kamera memilih kamera depan/belakang atau kamera lain.
+      Ganti Kamera memprioritaskan kamera depan/belakang di HP.
     </p>
 
     <iframe
@@ -593,7 +593,17 @@
 
     let availableCameras = [];
     let currentCameraIndex = -1;
+    let currentCameraId = '';
+    let currentFacingMode = 'unknown';
     let previewMirrored = false;
+
+    /*
+     * Pada HP, daftar kamera kadang hanya menampilkan satu perangkat
+     * walaupun kamera depan dan belakang tersedia. Karena itu tombol
+     * Ganti Kamera tidak lagi bergantung hanya pada jumlah device.
+     */
+    const likelyMobileDevice =
+      detectLikelyMobileDevice();
 
     let currentRawQr = '';
     let currentDisplayName = '';
@@ -767,9 +777,11 @@
     }
 
     /**
-     * Meminta daftar kamera dan membuka kamera yang paling sesuai.
-     * Kamera belakang diutamakan pada HP; jika tidak ditemukan,
-     * kamera pertama yang tersedia digunakan.
+     * Membuka kamera awal.
+     *
+     * Pada HP, sistem terlebih dahulu meminta facingMode "environment"
+     * agar kamera belakang dipilih. Jika browser tidak mendukungnya,
+     * sistem beralih ke camera ID dari daftar perangkat.
      */
     async function startCamera() {
       if (
@@ -793,20 +805,79 @@
       setStatus('Mencari perangkat kamera...');
 
       try {
-        await refreshCameraList();
-
-        if (availableCameras.length === 0) {
-          throw new Error(
-            'Tidak ada perangkat kamera yang ditemukan.'
+        /*
+         * getCameras() meminta izin sekaligus memperoleh label kamera.
+         * Kegagalan enumerasi tidak langsung menghentikan proses,
+         * karena facingMode masih dapat bekerja di sebagian HP.
+         */
+        try {
+          await refreshCameraList();
+        } catch (listError) {
+          availableCameras = [];
+          currentCameraIndex = -1;
+          console.warn(
+            'Daftar kamera belum dapat dibaca:',
+            listError
           );
         }
 
-        const preferredIndex =
-          findPreferredInitialCameraIndex();
+        let started = false;
+        let facingError = null;
 
-        await activateCameraByIndex(
-          preferredIndex
-        );
+        if (
+          likelyMobileDevice ||
+          supportsFacingModeConstraint()
+        ) {
+          try {
+            await activateCameraByFacing(
+              'environment'
+            );
+            started = true;
+          } catch (error) {
+            facingError = error;
+            await cleanupScanner();
+            await waitForCameraRelease();
+          }
+        }
+
+        if (!started) {
+          if (availableCameras.length === 0) {
+            try {
+              await refreshCameraList();
+            } catch (ignored) {
+              // Pesan akhir ditangani di bawah.
+            }
+          }
+
+          if (availableCameras.length === 0) {
+            throw (
+              facingError ||
+              new Error(
+                'Tidak ada perangkat kamera yang ditemukan.'
+              )
+            );
+          }
+
+          const preferredIndex =
+            findPreferredInitialCameraIndex();
+
+          await activateCameraByIndex(
+            preferredIndex
+          );
+        }
+
+        /*
+         * Setelah izin diberikan, refresh ulang agar semua kamera HP
+         * dan labelnya lebih mungkin terlihat.
+         */
+        try {
+          await refreshCameraList();
+          syncActiveCameraState(
+            currentFacingMode
+          );
+        } catch (ignored) {
+          // Kamera tetap dapat dipakai walau daftar gagal diperbarui.
+        }
 
         setStatus(
           'Kamera aktif. Arahkan ke QR siswa.',
@@ -822,6 +893,7 @@
         );
       } finally {
         cameraTransitioning = false;
+        updateCameraInfo();
         updateCameraControls();
       }
     }
@@ -830,23 +902,26 @@
      * Mengambil daftar kamera yang diizinkan browser.
      */
     async function refreshCameraList() {
-      const previousId = getCurrentCameraId();
-      const devices = await Html5Qrcode.getCameras();
+      const devices =
+        await Html5Qrcode.getCameras();
 
-      availableCameras = Array.isArray(devices)
-        ? devices
-        : [];
+      availableCameras =
+        Array.isArray(devices)
+          ? devices
+          : [];
 
-      if (previousId) {
+      if (currentCameraId) {
         const matchedIndex =
           availableCameras.findIndex(
             function(device) {
-              return device.id === previousId;
+              return device.id ===
+                currentCameraId;
             }
           );
 
         if (matchedIndex >= 0) {
-          currentCameraIndex = matchedIndex;
+          currentCameraIndex =
+            matchedIndex;
         }
       }
 
@@ -858,7 +933,8 @@
       const rearIndex =
         availableCameras.findIndex(
           function(device) {
-            return getCameraFacing(device) === 'back';
+            return getCameraFacing(device) ===
+              'environment';
           }
         );
 
@@ -867,25 +943,8 @@
         : 0;
     }
 
-    /**
-     * Mengaktifkan kamera berdasarkan camera ID.
-     */
-    async function activateCameraByIndex(index) {
-      if (
-        index < 0 ||
-        index >= availableCameras.length
-      ) {
-        throw new Error(
-          'Pilihan kamera tidak valid.'
-        );
-      }
-
-      const device = availableCameras[index];
-
-      cameraScanner =
-        new Html5Qrcode('reader');
-
-      const config = {
+    function getScannerConfig() {
+      return {
         fps: 10,
 
         qrbox: function(
@@ -907,18 +966,37 @@
 
         aspectRatio: 1.333334
       };
+    }
+
+    /**
+     * Menjalankan scanner menggunakan camera ID atau constraint.
+     */
+    async function activateCameraSelection(
+      cameraSelection,
+      intendedFacing
+    ) {
+      cameraScanner =
+        new Html5Qrcode('reader');
 
       await cameraScanner.start(
-        device.id,
-        config,
+        cameraSelection,
+        getScannerConfig(),
         onScanSuccess,
         function() {
           // Kesalahan pembacaan setiap frame diabaikan.
         }
       );
 
-      currentCameraIndex = index;
       cameraRunning = true;
+
+      /*
+       * Beri waktu singkat agar video track dan settings tersedia.
+       */
+      await sleep(120);
+
+      syncActiveCameraState(
+        intendedFacing
+      );
 
       applyPreviewFlip();
       updateCameraInfo();
@@ -926,10 +1004,99 @@
     }
 
     /**
-     * Berpindah dari kamera belakang ke depan, atau sebaliknya.
-     * Pada laptop dengan lebih dari dua kamera, tombol akan
-     * berpindah ke kamera berikutnya jika label depan/belakang
-     * tidak dapat dikenali.
+     * Membuka kamera dengan constraint facingMode resmi:
+     * - "environment" = kamera belakang
+     * - "user"        = kamera depan
+     *
+     * Format "ideal" tidak digunakan karena tidak diterima
+     * oleh html5-qrcode versi yang dipakai.
+     */
+    async function activateCameraByFacing(
+      facingMode
+    ) {
+      let firstError = null;
+
+      try {
+        await activateCameraSelection(
+          {
+            facingMode: facingMode
+          },
+          facingMode
+        );
+
+        return;
+      } catch (error) {
+        firstError = error;
+
+        await cleanupScanner();
+        await waitForCameraRelease();
+      }
+
+      /*
+       * Fallback yang lebih tegas untuk browser yang mengabaikan
+       * facingMode dalam bentuk string biasa.
+       */
+      try {
+        await activateCameraSelection(
+          {
+            facingMode: {
+              exact: facingMode
+            }
+          },
+          facingMode
+        );
+      } catch (exactError) {
+        await cleanupScanner();
+
+        throw (
+          exactError ||
+          firstError
+        );
+      }
+    }
+
+    /**
+     * Mengaktifkan kamera berdasarkan camera ID.
+     */
+    async function activateCameraByIndex(index) {
+      if (
+        index < 0 ||
+        index >= availableCameras.length
+      ) {
+        throw new Error(
+          'Pilihan kamera tidak valid.'
+        );
+      }
+
+      const device =
+        availableCameras[index];
+
+      const intendedFacing =
+        getCameraFacing(device);
+
+      await activateCameraSelection(
+        device.id,
+        intendedFacing
+      );
+
+      currentCameraIndex = index;
+      currentCameraId = device.id;
+
+      syncActiveCameraState(
+        intendedFacing
+      );
+    }
+
+    /**
+     * Mengganti kamera pada HP dengan facingMode secara langsung.
+     *
+     * Perbaikan v002:
+     * - Tidak bergantung pada label kamera.
+     * - Tidak dinonaktifkan hanya karena getCameras() menampilkan
+     *   satu perangkat.
+     * - Kamera lama dilepas dahulu dan diberi jeda sebelum
+     *   kamera depan/belakang dibuka.
+     * - Jika facingMode gagal, sistem mencoba camera ID.
      */
     async function switchCamera() {
       if (busy) {
@@ -949,107 +1116,306 @@
 
       cameraTransitioning = true;
       updateCameraControls();
-      setStatus('Mengganti sumber kamera...');
 
-      const previousCameraId =
-        getCurrentCameraId();
+      const previousState = {
+        id: currentCameraId,
+        index: currentCameraIndex,
+        facing: currentFacingMode
+      };
+
+      const detectedFacing =
+        getActiveFacingMode();
+
+      const sourceFacing =
+        detectedFacing !== 'unknown'
+          ? detectedFacing
+          : currentFacingMode;
+
+      const targetFacing =
+        sourceFacing === 'user'
+          ? 'environment'
+          : 'user';
+
+      setStatus(
+        targetFacing === 'user'
+          ? 'Membuka kamera depan...'
+          : 'Membuka kamera belakang...'
+      );
+
+      let switchError = null;
+      let switched = false;
 
       try {
-        await refreshCameraList();
+        /*
+         * Browser HP perlu kamera lama benar-benar dilepas
+         * sebelum source baru diminta.
+         */
+        await cleanupScanner();
+        await waitForCameraRelease();
 
-        if (availableCameras.length < 2) {
+        try {
+          await activateCameraByFacing(
+            targetFacing
+          );
+
+          switched =
+            didCameraSwitch(
+              previousState,
+              targetFacing
+            );
+        } catch (error) {
+          switchError = error;
+          await cleanupScanner();
+          await waitForCameraRelease();
+        }
+
+        /*
+         * Fallback camera ID:
+         * dipakai jika browser mengabaikan facingMode
+         * atau tetap membuka kamera yang sama.
+         */
+        if (!switched) {
+          try {
+            await refreshCameraList();
+          } catch (ignored) {
+            // Lanjut dengan daftar terakhir yang tersedia.
+          }
+
+          const targetIndex =
+            findCameraIndexForFacing(
+              targetFacing,
+              previousState.id
+            );
+
+          const fallbackIndex =
+            targetIndex >= 0
+              ? targetIndex
+              : findNextDifferentCameraIndex(
+                  previousState.id
+                );
+
+          if (fallbackIndex < 0) {
+            throw (
+              switchError ||
+              new Error(
+                targetFacing === 'user'
+                  ? 'Kamera depan tidak ditemukan oleh browser.'
+                  : 'Kamera belakang tidak ditemukan oleh browser.'
+              )
+            );
+          }
+
+          await cleanupScanner();
+          await waitForCameraRelease();
+
+          await activateCameraByIndex(
+            fallbackIndex
+          );
+
+          switched =
+            didCameraSwitch(
+              previousState,
+              targetFacing
+            );
+        }
+
+        if (!switched) {
           throw new Error(
-            'Perangkat hanya memiliki satu kamera yang dapat digunakan.'
+            'Browser tetap memilih kamera yang sama.'
           );
         }
 
-        const nextIndex =
-          findNextCameraIndex();
-
-        await cleanupScanner();
-        await activateCameraByIndex(nextIndex);
+        try {
+          await refreshCameraList();
+          syncActiveCameraState(
+            targetFacing
+          );
+        } catch (ignored) {
+          // Kamera sudah aktif; kegagalan daftar tidak fatal.
+        }
 
         setStatus(
-          'Kamera berhasil diganti. Arahkan ke QR siswa.',
+          currentFacingMode === 'user'
+            ? 'Kamera depan aktif. Arahkan ke QR siswa.'
+            : currentFacingMode === 'environment'
+              ? 'Kamera belakang aktif. Arahkan ke QR siswa.'
+              : 'Kamera berhasil diganti. Arahkan ke QR siswa.',
           'ok'
         );
       } catch (error) {
+        switchError =
+          error || switchError;
+
         /*
-         * Jika kamera baru gagal, coba aktifkan kembali kamera lama.
+         * Jika pergantian gagal, pulihkan kamera sebelumnya
+         * supaya aplikasi tetap dapat dipakai.
          */
         try {
-          const restoreIndex =
-            availableCameras.findIndex(
-              function(device) {
-                return device.id === previousCameraId;
-              }
-            );
-
-          if (
-            !cameraRunning &&
-            restoreIndex >= 0
-          ) {
-            await cleanupScanner();
-            await activateCameraByIndex(restoreIndex);
-          }
+          await restorePreviousCamera(
+            previousState
+          );
         } catch (restoreError) {
           console.error(
-            'Kamera lama juga gagal dipulihkan:',
+            'Kamera sebelumnya gagal dipulihkan:',
             restoreError
           );
         }
 
         setStatus(
           'Gagal mengganti kamera: ' +
-          readableCameraError(error),
+          readableCameraError(
+            switchError
+          ),
           'error'
         );
       } finally {
         cameraTransitioning = false;
+        updateCameraInfo();
         updateCameraControls();
       }
     }
 
-    function findNextCameraIndex() {
-      const currentDevice =
-        availableCameras[currentCameraIndex];
+    async function restorePreviousCamera(
+      previousState
+    ) {
+      await cleanupScanner();
+      await waitForCameraRelease();
 
-      const currentFacing =
-        getCameraFacing(currentDevice);
-
-      if (currentFacing === 'back') {
-        const frontIndex =
-          availableCameras.findIndex(
-            function(device) {
-              return getCameraFacing(device) === 'front';
-            }
+      if (previousState.id) {
+        try {
+          await activateCameraSelection(
+            previousState.id,
+            previousState.facing
           );
 
-        if (frontIndex >= 0) {
-          return frontIndex;
+          return;
+        } catch (ignored) {
+          await cleanupScanner();
+          await waitForCameraRelease();
         }
       }
 
-      if (currentFacing === 'front') {
-        const backIndex =
-          availableCameras.findIndex(
-            function(device) {
-              return getCameraFacing(device) === 'back';
-            }
+      if (
+        previousState.facing === 'user' ||
+        previousState.facing ===
+          'environment'
+      ) {
+        try {
+          await activateCameraByFacing(
+            previousState.facing
           );
 
-        if (backIndex >= 0) {
-          return backIndex;
+          return;
+        } catch (ignored) {
+          await cleanupScanner();
+          await waitForCameraRelease();
         }
       }
 
-      return (
-        currentCameraIndex + 1
-      ) % availableCameras.length;
+      try {
+        await refreshCameraList();
+      } catch (ignored) {
+        // Periksa daftar yang sudah ada.
+      }
+
+      if (availableCameras.length > 0) {
+        const restoreIndex =
+          previousState.index >= 0 &&
+          previousState.index <
+            availableCameras.length
+            ? previousState.index
+            : 0;
+
+        await activateCameraByIndex(
+          restoreIndex
+        );
+      }
+    }
+
+    function didCameraSwitch(
+      previousState,
+      targetFacing
+    ) {
+      const activeFacing =
+        getActiveFacingMode();
+
+      if (
+        activeFacing === targetFacing
+      ) {
+        return true;
+      }
+
+      if (
+        currentFacingMode === targetFacing
+      ) {
+        return true;
+      }
+
+      if (
+        previousState.id &&
+        currentCameraId &&
+        previousState.id !==
+          currentCameraId
+      ) {
+        return true;
+      }
+
+      /*
+       * Jika browser menyembunyikan deviceId/facingMode,
+       * keberhasilan start diterima karena tidak ada cara
+       * lain untuk memverifikasinya.
+       */
+      if (
+        !previousState.id &&
+        !currentCameraId &&
+        activeFacing === 'unknown'
+      ) {
+        return true;
+      }
+
+      return false;
+    }
+
+    function findCameraIndexForFacing(
+      facingMode,
+      excludedId
+    ) {
+      return availableCameras.findIndex(
+        function(device) {
+          return (
+            device.id !== excludedId &&
+            getCameraFacing(device) ===
+              facingMode
+          );
+        }
+      );
+    }
+
+    function findNextDifferentCameraIndex(
+      excludedId
+    ) {
+      if (availableCameras.length === 0) {
+        return -1;
+      }
+
+      const nextIndex =
+        availableCameras.findIndex(
+          function(device) {
+            return device.id !==
+              excludedId;
+          }
+        );
+
+      return nextIndex;
     }
 
     /**
      * Mendeteksi kamera depan/belakang dari label perangkat.
+     *
+     * Hasil:
+     * - user
+     * - environment
+     * - unknown
      */
     function getCameraFacing(device) {
       const label = String(
@@ -1063,7 +1429,8 @@
         'user',
         'face',
         'depan',
-        'facetime'
+        'facetime',
+        'selfie'
       ];
 
       const backWords = [
@@ -1081,7 +1448,7 @@
           }
         )
       ) {
-        return 'front';
+        return 'user';
       }
 
       if (
@@ -1091,19 +1458,185 @@
           }
         )
       ) {
-        return 'back';
+        return 'environment';
       }
 
       return 'unknown';
     }
 
-    function getCurrentCameraId() {
-      const device =
-        availableCameras[currentCameraIndex];
+    function normalizeFacingMode(value) {
+      const mode =
+        String(value || '')
+          .trim()
+          .toLowerCase();
 
-      return device
-        ? device.id
-        : '';
+      if (
+        mode === 'user' ||
+        mode === 'front'
+      ) {
+        return 'user';
+      }
+
+      if (
+        mode === 'environment' ||
+        mode === 'back' ||
+        mode === 'rear'
+      ) {
+        return 'environment';
+      }
+
+      return 'unknown';
+    }
+
+    function getActiveVideoTrack() {
+      const video =
+        el.reader.querySelector('video');
+
+      if (
+        !video ||
+        !video.srcObject ||
+        typeof video.srcObject
+          .getVideoTracks !== 'function'
+      ) {
+        return null;
+      }
+
+      const tracks =
+        video.srcObject.getVideoTracks();
+
+      return tracks && tracks.length > 0
+        ? tracks[0]
+        : null;
+    }
+
+    function getActiveTrackSettings() {
+      const track =
+        getActiveVideoTrack();
+
+      if (
+        !track ||
+        typeof track.getSettings !==
+          'function'
+      ) {
+        return {};
+      }
+
+      return track.getSettings() || {};
+    }
+
+    function getActiveFacingMode() {
+      const settings =
+        getActiveTrackSettings();
+
+      return normalizeFacingMode(
+        settings.facingMode
+      );
+    }
+
+    function syncActiveCameraState(
+      intendedFacing
+    ) {
+      const settings =
+        getActiveTrackSettings();
+
+      const settingsId =
+        String(
+          settings.deviceId || ''
+        );
+
+      if (settingsId) {
+        currentCameraId =
+          settingsId;
+      }
+
+      let matchedDevice = null;
+
+      if (currentCameraId) {
+        const matchedIndex =
+          availableCameras.findIndex(
+            function(device) {
+              return device.id ===
+                currentCameraId;
+            }
+          );
+
+        if (matchedIndex >= 0) {
+          currentCameraIndex =
+            matchedIndex;
+
+          matchedDevice =
+            availableCameras[
+              matchedIndex
+            ];
+        }
+      }
+
+      const settingsFacing =
+        normalizeFacingMode(
+          settings.facingMode
+        );
+
+      const labelFacing =
+        getCameraFacing(
+          matchedDevice
+        );
+
+      currentFacingMode =
+        settingsFacing !== 'unknown'
+          ? settingsFacing
+          : labelFacing !== 'unknown'
+            ? labelFacing
+            : normalizeFacingMode(
+                intendedFacing
+              );
+    }
+
+    function supportsFacingModeConstraint() {
+      if (
+        !navigator.mediaDevices ||
+        typeof navigator.mediaDevices
+          .getSupportedConstraints !==
+          'function'
+      ) {
+        return false;
+      }
+
+      const constraints =
+        navigator.mediaDevices
+          .getSupportedConstraints();
+
+      return Boolean(
+        constraints &&
+        constraints.facingMode
+      );
+    }
+
+    function detectLikelyMobileDevice() {
+      const userAgentMobile =
+        navigator.userAgentData &&
+        typeof navigator.userAgentData
+          .mobile === 'boolean'
+          ? navigator.userAgentData.mobile
+          : false;
+
+      const legacyMobile =
+        /Android|iPhone|iPad|iPod|Mobile/i
+          .test(
+            navigator.userAgent || ''
+          );
+
+      const coarsePointer =
+        window.matchMedia &&
+        window.matchMedia(
+          '(pointer: coarse)'
+        ).matches &&
+        navigator.maxTouchPoints > 0;
+
+      return Boolean(
+        userAgentMobile ||
+        legacyMobile ||
+        coarsePointer
+      );
     }
 
     /**
@@ -1115,7 +1648,8 @@
         return;
       }
 
-      previewMirrored = !previewMirrored;
+      previewMirrored =
+        !previewMirrored;
 
       applyPreviewFlip();
       updateCameraInfo();
@@ -1137,7 +1671,9 @@
 
       el.flipButton.setAttribute(
         'aria-pressed',
-        previewMirrored ? 'true' : 'false'
+        previewMirrored
+          ? 'true'
+          : 'false'
       );
 
       el.flipButton.textContent =
@@ -1156,29 +1692,39 @@
         el.cameraInfo.textContent =
           availableCameras.length > 0
             ? availableCameras.length +
-              ' kamera ditemukan. Kamera belum aktif.'
+              ' kamera terdeteksi. Kamera belum aktif.'
             : 'Kamera belum dipilih.';
         return;
       }
 
+      const settings =
+        getActiveTrackSettings();
+
       const device =
-        availableCameras[currentCameraIndex];
+        availableCameras[
+          currentCameraIndex
+        ];
 
       const label =
         device && device.label
           ? device.label
-          : 'Kamera ' +
-            (currentCameraIndex + 1);
+          : settings.deviceId
+            ? 'Kamera aktif'
+            : 'Kamera terpilih';
 
       const facing =
-        getCameraFacing(device);
+        getActiveFacingMode() !==
+          'unknown'
+          ? getActiveFacingMode()
+          : currentFacingMode;
 
       const facingText =
-        facing === 'front'
+        facing === 'user'
           ? 'kamera depan'
-          : facing === 'back'
+          : facing ===
+              'environment'
             ? 'kamera belakang'
-            : 'kamera terpilih';
+            : 'sumber kamera aktif';
 
       el.cameraInfo.textContent =
         label +
@@ -1205,55 +1751,53 @@
         cameraTransitioning ||
         busy;
 
-      el.switchCameraButton.disabled =
-        !cameraRunning ||
-        cameraTransitioning ||
-        busy ||
-        availableCameras.length < 2;
+      /*
+       * v002:
+       * Pada HP tombol tetap aktif walaupun daftar kamera hanya berisi
+       * satu item, karena perpindahan dilakukan dengan facingMode.
+       */
+      const canAttemptCameraSwitch =
+        cameraRunning &&
+        !cameraTransitioning &&
+        !busy &&
+        (
+          likelyMobileDevice ||
+          availableCameras.length > 1
+        );
 
-      if (availableCameras.length === 1) {
+      el.switchCameraButton.disabled =
+        !canAttemptCameraSwitch;
+
+      if (!cameraRunning) {
+        el.switchCameraButton.textContent =
+          'Ganti Kamera';
+        return;
+      }
+
+      const activeFacing =
+        getActiveFacingMode() !==
+          'unknown'
+          ? getActiveFacingMode()
+          : currentFacingMode;
+
+      if (activeFacing === 'user') {
+        el.switchCameraButton.textContent =
+          'Gunakan Kamera Belakang';
+      } else if (
+        activeFacing === 'environment'
+      ) {
+        el.switchCameraButton.textContent =
+          'Gunakan Kamera Depan';
+      } else if (
+        likelyMobileDevice
+      ) {
+        el.switchCameraButton.textContent =
+          'Ganti Depan / Belakang';
+      } else if (
+        availableCameras.length < 2
+      ) {
         el.switchCameraButton.textContent =
           'Kamera Lain Tidak Ada';
-      } else if (
-        cameraRunning &&
-        availableCameras.length > 1
-      ) {
-        const currentDevice =
-          availableCameras[currentCameraIndex];
-
-        const currentFacing =
-          getCameraFacing(currentDevice);
-
-        const hasFront =
-          availableCameras.some(
-            function(device) {
-              return getCameraFacing(device) === 'front';
-            }
-          );
-
-        const hasBack =
-          availableCameras.some(
-            function(device) {
-              return getCameraFacing(device) === 'back';
-            }
-          );
-
-        if (
-          currentFacing === 'back' &&
-          hasFront
-        ) {
-          el.switchCameraButton.textContent =
-            'Gunakan Kamera Depan';
-        } else if (
-          currentFacing === 'front' &&
-          hasBack
-        ) {
-          el.switchCameraButton.textContent =
-            'Gunakan Kamera Belakang';
-        } else {
-          el.switchCameraButton.textContent =
-            'Ganti Kamera';
-        }
       } else {
         el.switchCameraButton.textContent =
           'Ganti Kamera';
@@ -1261,8 +1805,7 @@
     }
 
     /**
-     * Menghentikan dan membersihkan scanner tanpa menghapus
-     * daftar kamera maupun pilihan flip tampilan.
+     * Menghentikan dan membersihkan scanner.
      */
     async function cleanupScanner() {
       if (cameraScanner) {
@@ -1283,6 +1826,27 @@
 
       cameraScanner = null;
       cameraRunning = false;
+
+      /*
+       * Membersihkan elemen video lama agar browser HP
+       * benar-benar melepaskan source kamera sebelumnya.
+       */
+      el.reader.innerHTML = '';
+    }
+
+    function sleep(milliseconds) {
+      return new Promise(
+        function(resolve) {
+          setTimeout(
+            resolve,
+            milliseconds
+          );
+        }
+      );
+    }
+
+    async function waitForCameraRelease() {
+      await sleep(450);
     }
 
     async function stopCamera() {
@@ -1300,7 +1864,10 @@
       duplicateData = null;
       pendingNonce = '';
       pendingAction = '';
+
       currentCameraIndex = -1;
+      currentCameraId = '';
+      currentFacingMode = 'unknown';
 
       hideAllPanels();
 
